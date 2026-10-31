@@ -1,4 +1,4 @@
-// หน้าหลัก: เมนูหลัก + รายการด้านซ้าย, พื้นที่ขวาเป็น iframe (viewer.html) แสดงสื่อทั้งหมด
+// หน้าหลัก: แฟ้มประเภทสื่อ + ค้นหาและอัปโหลด พื้นที่ทำงานและตัวอย่างอยู่ใน viewer
 (() => {
   const { api, icon, esc, toast, pref, CAT_COLORS, CAT_LABELS } = TM;
   const $ = (id) => document.getElementById(id);
@@ -6,8 +6,10 @@
   const viewer = () => $("viewer").contentWindow?.Viewer;
 
   function setIcons() {
-    for (const id of ["brandLogo", "loginLogo"]) $(id).innerHTML = icon("layers", 22);
-    $("uploadBtn").innerHTML = `${icon("upload", 16)} อัพโหลด`;
+    for (const id of ["headerLogo", "loginLogo"]) $(id).innerHTML = icon("layers", 28);
+    $("storageIcon").innerHTML = icon("archive", 24);
+    $("accountAvatar").innerHTML = icon("document", 18);
+    $("uploadBtn").innerHTML = `${icon("upload", 16)} อัปโหลดสื่อ`;
     $("linkBtn").innerHTML = `${icon("link", 16)} วางลิงก์`;
     $("logoutBtn").innerHTML = icon("logout", 15);
     $("drawerBtn").innerHTML = icon("menu");
@@ -20,49 +22,45 @@
     const byCat = Object.fromEntries(state.counts.map((c) => [c.category, c.n]));
     const row = (key, label, color, n, active) => `<button class="nav-item${active ? " active" : ""}" data-cat="${key}">
       <span class="dot" style="background:${color}">${icon(key === "all" ? "all" : key === "trash" ? "trash" : key, 15)}</span>${esc(label)}<span class="count">${n}</span></button>`;
-    let html = row("all", "สื่อทั้งหมด", "linear-gradient(135deg,#4F5FE0,#7B4FE0)", total, !state.trash && state.category === "all");
+    let html = row("all", "สื่อทั้งหมด", "#1d513b", total, !state.trash && state.category === "all");
     for (const key of Object.keys(CAT_LABELS)) {
-      if (!byCat[key] && state.category !== key) continue; // แสดงเฉพาะหมวดที่มีสื่อ
       html += row(key, CAT_LABELS[key], CAT_COLORS[key], byCat[key] || 0, !state.trash && state.category === key);
     }
     html += row("trash", "ถังขยะ", "#8C93A6", state.trashCount, state.trash);
     $("catNav").innerHTML = html;
   }
 
-  function renderList() {
-    $("listTitle").textContent = state.trash ? "รายการในถังขยะ" : state.category === "all" ? "รายการสื่อ" : `รายการ · ${CAT_LABELS[state.category]}`;
-    $("list").innerHTML = state.items.length
-      ? state.items.map((it) => `<button class="list-item${it.id === state.activeId ? " active" : ""}" data-id="${it.id}" style="--c:${CAT_COLORS[it.category]}" title="${esc(it.title)}">${icon(it.category, 16)}<span>${esc(it.title)}</span></button>`).join("")
-      : `<p class="muted" style="padding:8px">ไม่มีรายการ</p>`;
-  }
-
   function pushToViewer() {
     viewer()?.render({ items: state.items, category: state.category, trash: state.trash, sort: state.sort, q: state.q, activeId: state.activeId });
   }
 
+  let loadVersion = 0;
   async function load() {
+    const version = ++loadVersion;
     const p = new URLSearchParams({ sort: state.sort });
     if (state.trash) p.set("trash", "1");
     else if (state.category !== "all") p.set("category", state.category);
     if (state.q) p.set("q", state.q);
     try {
       const data = await api(`/api/media?${p}`);
+      if (version !== loadVersion) return;
       Object.assign(state, { items: data.items, counts: data.counts, trashCount: data.trash_count });
-      if (!state.trash && state.category !== "all" && !data.counts.some((c) => c.category === state.category) && !state.q) {
-        state.category = "all"; pref.set("category", "all"); return load();
-      }
+
     } catch (e) {
+      if (version !== loadVersion) return;
       if (e.status === 401) return showLogin();
       toast(e.message, true);
     }
-    renderNav(); renderList(); pushToViewer();
+    renderNav(); pushToViewer();
   }
 
   // ให้ viewer เรียกกลับ
   window.TMApp = {
     reload: load,
     setSort(sort) { state.sort = sort; pref.set("sort", sort); load(); },
-    setActive(id) { state.activeId = id; renderList(); },
+    setActive(id) { state.activeId = id; },
+    setQuery(q) { state.q = q; $("search").value = q; load(); },
+    uploadFiles(files) { openModal("uploadModal"); uploadFiles(files); },
     openUpload: () => openModal("uploadModal"),
     openLink: () => openModal("linkModal"),
     ready: pushToViewer,
@@ -106,7 +104,7 @@
   const uploadFiles = (files) => [...files].forEach(uploadOne);
 
   // ---------- หน้าต่าง ----------
-  function openModal(id) { $(id).classList.add("open"); }
+  function openModal(id) { const modal = $(id); modal.classList.add("open"); modal.querySelector("input:not([hidden]), [data-close], button")?.focus(); }
   function closeModal(el) { el.closest(".modal").classList.remove("open"); }
 
   async function showApp() {
@@ -125,19 +123,14 @@
       if (!state.trash) { state.category = cat; pref.set("category", cat); }
       state.activeId = null;
       $("appView").classList.remove("drawer");
+      $("drawerBtn").setAttribute("aria-expanded", "false");
       load();
     });
-    $("list").addEventListener("click", (e) => {
-      const b = e.target.closest("[data-id]"); if (!b) return;
-      state.activeId = Number(b.dataset.id); renderList();
-      viewer()?.open(state.activeId);
-      $("appView").classList.remove("drawer");
-    });
     let t;
-    $("search").addEventListener("input", (e) => { clearTimeout(t); t = setTimeout(() => { state.q = e.target.value.trim(); load(); }, 300); });
+    $("search").addEventListener("input", (e) => { clearTimeout(t); state.q = e.target.value.trim(); t = setTimeout(load, 300); });
     $("uploadBtn").onclick = () => openModal("uploadModal");
     $("linkBtn").onclick = () => openModal("linkModal");
-    $("drawerBtn").onclick = () => $("appView").classList.toggle("drawer");
+    $("drawerBtn").onclick = () => { const expanded = $("appView").classList.toggle("drawer"); $("drawerBtn").setAttribute("aria-expanded", expanded); };
     $("appView").addEventListener("click", (e) => { if (e.target === $("appView")) $("appView").classList.remove("drawer"); });
     $("logoutBtn").onclick = async () => { await api("/api/logout", { method: "POST" }).catch(() => {}); location.reload(); };
     document.querySelectorAll("[data-close]").forEach((b) => b.addEventListener("click", () => closeModal(b)));
@@ -145,6 +138,8 @@
 
     const drop = $("drop");
     drop.onclick = () => $("fileInput").click();
+    drop.onkeydown = (e) => { if (["Enter", " "].includes(e.key)) { e.preventDefault(); $("fileInput").click(); } };
+    document.addEventListener("keydown", (e) => { if (e.key === "Escape") document.querySelectorAll(".modal.open").forEach((m) => m.classList.remove("open")); });
     $("fileInput").onchange = (e) => { uploadFiles(e.target.files); e.target.value = ""; };
     drop.addEventListener("dragover", (e) => { e.preventDefault(); drop.classList.add("over"); });
     drop.addEventListener("dragleave", () => drop.classList.remove("over"));

@@ -7,32 +7,38 @@
 <link rel="stylesheet" href="/style.css">
 </head>
 <body class="viewer-body">
+<div class="workspace">
+<nav class="breadcrumb" aria-label="ตำแหน่งปัจจุบัน"><span>แฟ้มสื่อของฉัน</span><span aria-hidden="true">/</span><b id="crumbTitle">สื่อทั้งหมด</b></nav>
 <header class="v-toolbar">
-  <div class="v-title"><h1 id="vTitle">สื่อทั้งหมด</h1><span class="muted" id="vCount"></span></div>
-  <div class="v-tools">
-    <label class="v-sort"><span class="muted">จัดเรียง</span><select class="input" id="sortSel"></select></label>
+  <div class="v-title"><span class="heading-icon" id="headingIcon"></span><h1 id="vTitle">สื่อทั้งหมด</h1><span class="muted" id="vCount"></span></div>
+  <div class="v-tools"><button class="btn btn-primary" id="quickUpload"></button><button class="btn" id="quickLink"></button></div>
+</header>
+<div class="library-controls"><label class="library-search"><span id="librarySearchIcon"></span><input class="input" id="librarySearch" type="search" aria-label="ค้นหาชื่อสื่อ" placeholder="ค้นหาไฟล์ในแฟ้มนี้…"></label><div class="v-tools">
+    <label class="v-sort"><span class="muted">จัดเรียง</span><select class="input" id="sortSel" aria-label="เรียงลำดับสื่อ"></select></label>
     <div class="seg" id="viewSeg"><button data-view="grid" title="แบบตาราง"></button><button data-view="list" title="แบบรายการ"></button></div>
     <button class="btn btn-sm" id="selectBtn"></button>
     <button class="btn btn-sm btn-danger" id="emptyTrashBtn" hidden></button>
   </div>
-</header>
+</div>
+<div class="inline-drop" id="inlineDrop" role="button" tabindex="0" aria-label="เลือกหรือลากไฟล์เพื่ออัปโหลด"><span id="inlineDropIcon"></span><div><b>ลากและวางไฟล์ที่นี่ เพื่ออัปโหลด</b><small>รองรับเอกสาร รูปภาพ วิดีโอ และเสียง · จัดหมวดให้อัตโนมัติ</small></div></div>
 <div class="v-bulk" id="bulkBar" hidden>
   <b id="bulkCount">เลือก 0 รายการ</b>
   <button class="btn btn-sm" id="bulkAll">เลือกทั้งหมด</button>
   <span class="v-bulk-actions" id="bulkActions"></span>
   <button class="btn btn-sm" id="bulkCancel">ยกเลิก</button>
 </div>
-<main id="vMain" class="v-main"></main>
+<main id="vMain" class="v-main" aria-live="polite"></main>
+</div>
 
-<div class="pv" id="pv" hidden>
+<aside class="pv" id="pv" aria-label="ตัวอย่างและรายละเอียดสื่อ" hidden>
   <div class="pv-head">
-    <button class="btn btn-icon" id="pvBack" title="กลับ"></button>
+    <button class="btn btn-icon" id="pvBack" title="ปิดตัวอย่าง"></button>
     <div class="pv-title"><b id="pvTitle"></b><small class="muted" id="pvMeta"></small></div>
-    <div class="pv-actions" id="pvActions"></div>
+
   </div>
   <div class="pv-body" id="pvBody"></div>
-  <div class="pv-desc" id="pvDesc" hidden></div>
-</div>
+  <section class="pv-details"><h2>รายละเอียดไฟล์</h2><dl id="pvDetails"></dl><div class="pv-desc" id="pvDesc" hidden></div><div class="pv-actions" id="pvActions"></div></section>
+</aside>
 
 <div class="modal" id="editModal">
   <form class="dialog" id="editForm">

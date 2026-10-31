@@ -5,7 +5,7 @@
   const host = window.parent !== window ? window.parent.TMApp : null;
   const TEXT_EXT = new Set(["txt", "csv", "tsv", "md", "json", "xml", "html", "htm", "css", "js", "py", "java", "c", "cpp", "srt", "vtt", "log"]);
   const OFFICE = new Set(["document", "spreadsheet", "presentation"]);
-  const st = { items: [], category: "all", trash: false, sort: "newest", q: "", view: pref.get("view", "grid"), selecting: false, selected: new Set(), openId: null };
+  const st = { items: [], category: "all", trash: false, sort: "newest", q: "", view: pref.get("view", "list"), selecting: false, selected: new Set(), openId: null };
 
   const reload = () => (host ? host.reload() : standalone());
   async function standalone() {
@@ -28,7 +28,7 @@
   function card(it) {
     const sel = st.selected.has(it.id);
     const meta = it.kind === "link" ? esc(it.link_provider === "web" ? new URL(it.url).hostname : it.link_provider) : size(it.file_size);
-    return `<article class="card${sel ? " sel" : ""}${it.id === st.openId ? " active" : ""}" data-id="${it.id}">
+    return `<article tabindex="0" role="button" aria-label="${esc(it.title)}" class="card${sel ? " sel" : ""}${it.id === st.openId ? " active" : ""}" data-id="${it.id}">
       <div class="th">${thumb(it)}${st.selecting ? `<span class="tick">${sel ? icon("check", 14) : ""}</span>` : ""}</div>
       <div class="card-b"><b title="${esc(it.title)}">${esc(it.title)}</b>
         <div class="card-m"><span class="chip" style="background:${CAT_COLORS[it.category]}">${esc(CAT_LABELS[it.category])}</span><span>${meta}</span></div>
@@ -37,13 +37,12 @@
 
   function row(it) {
     const sel = st.selected.has(it.id);
-    return `<div class="row${sel ? " sel" : ""}" data-id="${it.id}">
+    return `<div class="row${sel ? " sel" : ""}${it.id === st.openId ? " active" : ""}" data-id="${it.id}" tabindex="0" role="button" aria-label="${esc(it.title)}">
       ${st.selecting ? `<span class="tick">${sel ? icon("check", 14) : ""}</span>` : ""}
-      <span class="row-ic" style="background:${CAT_COLORS[it.category]}">${icon(it.category, 16)}</span>
-      <b title="${esc(it.title)}">${esc(it.title)}</b>
-      <span class="muted">${esc(CAT_LABELS[it.category])}</span>
-      <span class="muted">${it.kind === "link" ? "ลิงก์" : size(it.file_size)}</span>
-      <span class="muted">${date(st.trash ? it.deleted_at : it.created_at)}</span></div>`;
+      <span class="row-thumb">${thumb(it)}</span><b title="${esc(it.title)}">${esc(it.title)}</b>
+      <span class="muted row-type">${esc((it.ext || CAT_LABELS[it.category]).toUpperCase())}</span>
+      <span class="muted row-size">${it.kind === "link" ? "ลิงก์" : size(it.file_size)}</span>
+      <span class="muted row-date">${date(st.trash ? it.deleted_at : it.updated_at)}</span></div>`;
   }
 
   function groupLabel(it) {
@@ -58,6 +57,9 @@
   function renderMain() {
     const title = st.trash ? "ถังขยะ" : st.category === "all" ? "สื่อทั้งหมด" : CAT_LABELS[st.category];
     $("vTitle").textContent = st.q ? `${title} · ค้นหา “${st.q}”` : title;
+    $("crumbTitle").textContent = title;
+    $("librarySearch").value = st.q || "";
+    $("inlineDrop").hidden = st.trash;
     $("vCount").textContent = `${st.items.length} รายการ`;
     $("emptyTrashBtn").hidden = !st.trash || !st.items.length;
     $("viewSeg").querySelectorAll("button").forEach((b) => b.classList.toggle("on", b.dataset.view === st.view));
@@ -73,6 +75,10 @@
       const g = groupLabel(it);
       if (!groups.length || groups[groups.length - 1].label !== g) groups.push({ label: g, items: [] });
       groups[groups.length - 1].items.push(it);
+    }
+    if (st.view === "list") {
+      $("vMain").innerHTML = `<div class="row-heading"><span>ชื่อไฟล์</span><span>ประเภท</span><span>ขนาด</span><span>แก้ไขล่าสุด</span></div><div class="rows">${st.items.map(row).join("")}</div>`;
+      return;
     }
     $("vMain").innerHTML = groups.map((g) => `${g.label ? `<h2 class="g-head">${esc(g.label)} <span class="muted">${g.items.length}</span></h2>` : ""}
       <div class="${st.view === "grid" ? "grid" : "rows"}">${g.items.map(st.view === "grid" ? card : row).join("")}</div>`).join("");
@@ -126,6 +132,7 @@
     st.openId = it.id;
     host?.setActive(it.id);
     $("pv").hidden = false;
+    document.body.classList.add("preview-open");
     $("pvTitle").textContent = it.title;
     $("pvMeta").textContent = [CAT_LABELS[it.category], it.kind === "file" ? `${it.file_name} · ${size(it.file_size)}` : it.url, date(it.created_at)].filter(Boolean).join(" · ");
     const dl = it.kind === "file" ? `<a class="btn btn-sm" href="/file/${it.id}?download=1">${icon("download", 15)} ดาวน์โหลด</a>` : `<a class="btn btn-sm" href="${esc(it.url)}" target="_blank" rel="noopener">${icon("external", 15)} เปิดลิงก์</a>`;
@@ -133,9 +140,12 @@
     $("pvActions").innerHTML = st.trash
       ? `<button class="btn btn-sm" data-pv="restore">${icon("restore", 15)} กู้คืน</button><button class="btn btn-sm btn-danger" data-pv="delete">${icon("x", 15)} ลบถาวร</button>`
       : `${dl}${newTab}<button class="btn btn-sm" data-pv="edit">${icon("edit", 15)} แก้ไข</button><button class="btn btn-sm btn-danger" data-pv="trash">${icon("trash", 15)} ลบ</button>`;
+    const detailRows = [["ชื่อไฟล์", it.file_name || it.title], ["ประเภท", CAT_LABELS[it.category]], ["ขนาด", it.kind === "file" ? size(it.file_size) : "ลิงก์เว็บไซต์"], ["แก้ไขล่าสุด", date(it.updated_at)]];
+    $("pvDetails").innerHTML = detailRows.map(([label, value]) => `<dt>${esc(label)}</dt><dd>${esc(value)}</dd>`).join("");
     $("pvDesc").hidden = !it.description;
     $("pvDesc").textContent = it.description || "";
-    $("pvBack").innerHTML = icon("back");
+    $("pvBack").innerHTML = icon("x");
+    $("pvBack").setAttribute("aria-label", "ปิดตัวอย่าง");
     if (!rebuild) return;
     $("pvBody").innerHTML = previewBody(it);
     const pre = $("pvBody").querySelector("[data-text]");
@@ -152,7 +162,7 @@
     renderMain();
   }
   function closePreview() {
-    $("pv").hidden = true; $("pvBody").innerHTML = ""; st.openId = null;
+    $("pv").hidden = true; document.body.classList.remove("preview-open"); $("pvBody").innerHTML = ""; st.openId = null;
     host?.setActive(null); renderMain();
   }
 
@@ -177,6 +187,23 @@
   }
 
   // ---------- เหตุการณ์ ----------
+  $("headingIcon").innerHTML = icon("archive", 30);
+  $("quickUpload").innerHTML = `${icon("upload", 17)} อัปโหลดสื่อ`;
+  $("quickLink").innerHTML = `${icon("link", 17)} เพิ่มลิงก์`;
+  $("quickUpload").onclick = () => host?.openUpload();
+  $("quickLink").onclick = () => host?.openLink();
+  $("librarySearchIcon").innerHTML = icon("search", 18);
+  let searchTimer;
+  $("librarySearch").oninput = (e) => { const q = e.target.value; clearTimeout(searchTimer); searchTimer = setTimeout(() => host?.setQuery(q.trim()), 300); };
+  const inlineDrop = $("inlineDrop");
+  $("inlineDropIcon").innerHTML = icon("upload", 38);
+  inlineDrop.onclick = () => host?.openUpload();
+  inlineDrop.onkeydown = (e) => { if (["Enter", " "].includes(e.key)) { e.preventDefault(); host?.openUpload(); } };
+  inlineDrop.ondragover = (e) => { e.preventDefault(); inlineDrop.classList.add("over"); };
+  inlineDrop.ondragleave = () => inlineDrop.classList.remove("over");
+  inlineDrop.ondrop = (e) => { e.preventDefault(); inlineDrop.classList.remove("over"); if (e.dataTransfer.files.length) host?.uploadFiles(e.dataTransfer.files); };
+  $("vMain").onkeydown = (e) => { if (["Enter", " "].includes(e.key) && e.target.matches("[data-id]")) { e.preventDefault(); e.target.click(); } };
+
   $("sortSel").innerHTML = SORTS.map(([k, v]) => `<option value="${k}">${v}</option>`).join("");
   $("sortSel").onchange = (e) => (host ? host.setSort(e.target.value) : ((st.sort = e.target.value), standalone()));
   const seg = $("viewSeg").querySelectorAll("button");

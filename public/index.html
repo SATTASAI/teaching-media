@@ -21,43 +21,33 @@
 </div>
 
 <div id="appView" class="shell" hidden>
-  <div class="mobile-bar">
-    <button class="btn btn-icon" id="drawerBtn" aria-label="เมนู"></button>
-    <b>สื่อการสอนของฉัน</b>
-  </div>
+  <header class="app-header">
+    <button class="header-menu" id="drawerBtn" aria-label="เปิดหรือปิดเมนู" aria-expanded="false"></button>
+    <div class="header-brand"><span id="headerLogo"></span><b>แฟ้มสื่อของฉัน</b></div>
+    <label class="header-search"><span id="searchIcon"></span><input id="search" type="search" aria-label="ค้นหาสื่อทั้งหมด" placeholder="ค้นหาสื่อในแฟ้มของฉัน…"></label>
+    <div class="header-account"><span class="account-avatar" id="accountAvatar"></span><span class="who" id="who"></span><button class="header-menu" id="logoutBtn" aria-label="ออกจากระบบ"></button></div>
+  </header>
   <aside class="side">
-    <div class="brand">
-      <div class="brand-logo" id="brandLogo"></div>
-      <div><b>สื่อการสอนของฉัน</b><small>โรงเรียนบ้านป่าเด็ง</small></div>
-    </div>
     <div class="side-actions">
       <button class="btn btn-primary" id="uploadBtn"></button>
       <button class="btn" id="linkBtn"></button>
     </div>
     <nav class="side-nav">
-      <h3>เมนูหลัก</h3>
+      <h3>แฟ้มตามประเภทสื่อ</h3>
       <div id="catNav"></div>
     </nav>
-    <section class="side-list">
-      <h3 id="listTitle">รายการ</h3>
-      <div class="side-search"><span id="searchIcon"></span><input class="input" id="search" type="search" placeholder="ค้นหาชื่อสื่อ"></div>
-      <div class="list" id="list"></div>
-    </section>
-    <div class="side-foot">
-      <span class="who" id="who"></span>
-      <button class="btn btn-sm" id="logoutBtn" title="ออกจากระบบ"></button>
-    </div>
+    <div class="side-note"><span id="storageIcon"></span><b>สื่อของคุณ พร้อมใช้สอน</b><p>จัดเก็บใน Google Drive<br>เข้าถึงได้ด้วยบัญชีโรงเรียน</p></div>
   </aside>
   <main class="main">
     <iframe id="viewer" title="สื่อทั้งหมด" src="/viewer.html"></iframe>
   </main>
 </div>
 
-<div class="modal" id="uploadModal">
+<div class="modal" id="uploadModal" role="dialog" aria-modal="true" aria-labelledby="uploadTitle">
   <div class="dialog">
-    <h2>อัพโหลดสื่อการสอน</h2>
+    <h2 id="uploadTitle">อัปโหลดสื่อการสอน</h2>
     <p class="muted" style="margin:0">อัพโหลดได้ทุกประเภทไฟล์ ไม่จำกัดขนาด · ระบบจัดหมวดให้อัตโนมัติ · ไฟล์เก็บในโฟลเดอร์ของคุณใน Google Drive</p>
-    <div class="drop" id="drop"><div id="dropIcon"></div><b>ลากไฟล์มาวาง</b> หรือ <u>คลิกเพื่อเลือกไฟล์</u><div class="muted" style="font-size:12.5px">เลือกได้หลายไฟล์พร้อมกัน</div></div>
+    <div class="drop" id="drop" role="button" tabindex="0" aria-label="เลือกไฟล์สื่อการสอน"><div id="dropIcon"></div><b>ลากไฟล์มาวาง</b> หรือ <u>คลิกเพื่อเลือกไฟล์</u><div class="muted" style="font-size:12.5px">เลือกได้หลายไฟล์พร้อมกัน</div></div>
     <input type="file" id="fileInput" multiple hidden>
     <div class="queue" id="queue"></div>
     <div class="dialog-actions"><button class="btn" data-close>ปิด</button></div>
