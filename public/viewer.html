@@ -8,12 +8,13 @@
 </head>
 <body class="viewer-body">
 <div class="workspace">
-<nav class="breadcrumb" aria-label="ตำแหน่งปัจจุบัน"><span>แฟ้มสื่อของฉัน</span><span aria-hidden="true">/</span><b id="crumbTitle">สื่อทั้งหมด</b></nav>
+<nav class="breadcrumb" aria-label="ตำแหน่งปัจจุบัน"><button class="crumb-home" id="crumbHome">แฟ้มสื่อของฉัน</button><span id="crumbPath"></span></nav>
 <header class="v-toolbar">
   <div class="v-title"><span class="heading-icon" id="headingIcon"></span><h1 id="vTitle">สื่อทั้งหมด</h1><span class="muted" id="vCount"></span></div>
-  <div class="v-tools"><button class="btn btn-primary" id="quickUpload"></button><button class="btn" id="quickLink"></button></div>
+  <div class="v-tools"><button class="btn btn-primary" id="quickUpload"></button><button class="btn" id="quickCreateFolder"></button><div id="folderContext" class="folder-context" hidden></div></div>
 </header>
 <div class="library-controls"><label class="library-search"><span id="librarySearchIcon"></span><input class="input" id="librarySearch" type="search" aria-label="ค้นหาชื่อสื่อ" placeholder="ค้นหาไฟล์ในแฟ้มนี้…"></label><div class="v-tools">
+    <label class="type-filter"><select class="input" id="typeFilter" aria-label="กรองประเภทไฟล์"></select></label>
     <label class="v-sort"><span class="muted">จัดเรียง</span><select class="input" id="sortSel" aria-label="เรียงลำดับสื่อ"></select></label>
     <div class="seg" id="viewSeg"><button data-view="grid" title="แบบตาราง"></button><button data-view="list" title="แบบรายการ"></button></div>
     <button class="btn btn-sm" id="selectBtn"></button>
@@ -27,6 +28,7 @@
   <span class="v-bulk-actions" id="bulkActions"></span>
   <button class="btn btn-sm" id="bulkCancel">ยกเลิก</button>
 </div>
+<section id="folderGrid" class="folder-grid" aria-label="แฟ้มงาน"></section>
 <main id="vMain" class="v-main" aria-live="polite"></main>
 </div>
 

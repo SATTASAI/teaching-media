@@ -33,8 +33,9 @@
       <button class="btn" id="linkBtn"></button>
     </div>
     <nav class="side-nav">
-      <h3>แฟ้มตามประเภทสื่อ</h3>
-      <div id="catNav"></div>
+      <div id="mainNav"></div>
+      <div class="tree-heading"><h3>แฟ้มงานของฉัน</h3><button id="sideCreateFolder" class="btn btn-icon" aria-label="สร้างแฟ้มงาน"></button></div>
+      <div id="folderTree" class="folder-tree"></div>
     </nav>
     <div class="side-note"><span id="storageIcon"></span><b>สื่อของคุณ พร้อมใช้สอน</b><p>จัดเก็บใน Google Drive<br>เข้าถึงได้ด้วยบัญชีโรงเรียน</p></div>
   </aside>
@@ -50,7 +51,7 @@
     <div class="drop" id="drop" role="button" tabindex="0" aria-label="เลือกไฟล์สื่อการสอน"><div id="dropIcon"></div><b>ลากไฟล์มาวาง</b> หรือ <u>คลิกเพื่อเลือกไฟล์</u><div class="muted" style="font-size:12.5px">เลือกได้หลายไฟล์พร้อมกัน</div></div>
     <input type="file" id="fileInput" multiple hidden>
     <div class="queue" id="queue"></div>
-    <div class="dialog-actions"><button class="btn" data-close>ปิด</button></div>
+    <div class="dialog-actions"><button type="button" class="btn" id="uploadLinkBtn">เพิ่มลิงก์สื่อ</button><button class="btn" data-close>ปิด</button></div>
   </div>
 </div>
 
@@ -62,6 +63,26 @@
     <label class="field"><span>ชื่อสื่อ (เว้นว่างให้ระบบตั้งจากหน้าเว็บ)</span><input class="input" name="title" maxlength="200"></label>
     <label class="field"><span>คำอธิบาย</span><textarea class="input" name="description" rows="3" maxlength="2000"></textarea></label>
     <div class="dialog-actions"><button type="button" class="btn" data-close>ยกเลิก</button><button class="btn btn-primary">บันทึกลิงก์</button></div>
+  </form>
+</div>
+
+<div class="modal" id="folderModal" role="dialog" aria-modal="true" aria-labelledby="folderModalTitle">
+  <form class="dialog" id="folderForm">
+    <h2 id="folderModalTitle">สร้างโฟลเดอร์</h2>
+    <p class="muted">จัดสื่อตามรายวิชา ระดับชั้น หรือหน่วยการเรียนรู้</p>
+    <label class="field"><span>ชื่อแฟ้มงาน</span><input class="input" name="folderName" maxlength="120" required placeholder="เช่น ภาษาอังกฤษ หรือ ป.4"></label>
+    <label class="field"><span>จัดเก็บภายในแฟ้ม</span><select class="input" name="parentFolder" id="folderParent"></select></label>
+    <p class="err" id="folderError" role="alert"></p>
+    <div class="dialog-actions"><button type="button" class="btn" data-close>ยกเลิก</button><button class="btn btn-primary" id="saveFolderBtn">สร้างแฟ้ม</button></div>
+  </form>
+</div>
+<div class="modal" id="moveModal" role="dialog" aria-modal="true" aria-labelledby="moveTitle">
+  <form class="dialog" id="moveForm">
+    <h2 id="moveTitle">ย้ายสื่อไปแฟ้ม</h2>
+    <p class="muted" id="moveSummary"></p>
+    <label class="field"><span>แฟ้มปลายทาง</span><select class="input" id="moveDestination" name="destination"></select></label>
+    <p class="err" id="moveError" role="alert"></p>
+    <div class="dialog-actions"><button type="button" class="btn" data-close>ยกเลิก</button><button class="btn btn-primary">ย้ายสื่อ</button></div>
   </form>
 </div>
 

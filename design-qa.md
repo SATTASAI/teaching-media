@@ -1,53 +1,53 @@
-# Forest library redesign review
+# Folder-workspace correction review
 
 final result: passed
 
-## Scope and intentional differences
+## Source and current evidence
 
-Selected visual truth: `docs/qa/selected-reference.jpg` (1488 × 1058).
-The user chose the green three-region file library and explicitly selected existing **file-type categories**, rather than new subject/grade folders. Navigation, headings and supported actions therefore follow the existing API. Existing Feather icons are retained. No mock subject folders, favorite buttons or create-folder controls were introduced.
+- Selected source: `docs/qa/selected-reference.jpg`, 1488 × 1058 pixels.
+- Browser-rendered file workspace: `docs/qa/desktop.jpg`, 1363 × 936 CSS pixels at 1× density, selected PDF in English / P4 / Wild Animals, list mode, preview open.
+- Browser-rendered folder manager: `docs/qa/folder-manager.jpg`, same desktop viewport.
+- Combined full-view comparison: `docs/qa/comparison.jpg`. Images fit separate 1000px panels while preserving natural aspect ratio; the different frame heights are not treated as drift.
+- Focused checks: full-resolution title/actions/search, nested folder navigation, file checkboxes, metadata columns, right preview/details/actions and folder creation/edit/move dialogs were inspected in the browser.
+- Mobile: actual app in a 390 × 844 iframe, including its nested viewer. The manager layout has no horizontal overflow (390px viewport, 375px scroll width), and the drawer collapses after choosing a section.
 
-## Evidence
+## Findings and correction history
 
-- Browser-rendered implementation: `docs/qa/desktop.jpg`, 1363 × 936 CSS pixels at 1× density.
-- Full-view normalized comparison: `docs/qa/comparison.jpg`. Both images fit within 1000-pixel-wide panels preserving their natural aspect ratios. Different source and browser heights are not treated as layout drift.
-- State: authenticated local fixture account; all categories; list view; first worksheet selected; right preview open.
-- Focused inspection: header/search/actions, list columns and right preview/details were inspected in the full-resolution browser screenshot in addition to the combined comparison.
-- Responsive check: actual application nested in a 390 × 844 browser iframe, with its own nested viewer. Drawer opening and category selection/automatic closing were exercised. This is a CSS viewport check, not physical-device emulation.
+- P1 resolved: the previous implementation substituted file-type navigation for the selected folder hierarchy and omitted folder management. Added a real owner-scoped collection schema, authenticated folder CRUD and file-move endpoints, nested navigation, breadcrumbs, deep links and a dedicated `/#/manage` screen.
+- P2 resolved: PDF/Office previews previously opened directly inside the narrow panel. The panel now shows the file thumbnail as in the reference; **ดูตัวอย่าง** opens the full preview. Full-view width was verified equal to the viewer viewport (1111px).
+- P2 resolved: oversized secondary action groups distracted from the draft. File move/favorite/edit/delete commands now live in a compact management menu; current-folder controls use a header menu.
+- P2 resolved: management initially displayed file-oriented filters/upload controls. These are hidden in management mode, with Create Folder as the primary action.
+- No remaining actionable P0/P1/P2 findings in the tested scope.
 
-Fixture data and the temporary preview server are outside the repository and do not ship. Worksheet images used in local test fixtures came from the selected reference. Thumbnail repetition in the review screenshot is fixture-only; production continues to request each real file thumbnail from the existing authenticated endpoint.
+## Fidelity surfaces
 
-## Findings and iteration history
-
-- P2 (resolved): the initial intermediate-width rules hid the modified-date column and made the preview narrower than the chosen design. Restored the 360px preview and four-column metadata layout for viewer widths 1060–1599px. The saved comparison shows the corrected date column and preview proportions.
-- P2 (resolved): now-visible empty categories inherited an automatic jump back to all media. Removed that fallback and verified PDF remains selected with an empty-state upload action.
-- P2 (resolved): overlapping category/search loads could apply an older response. Added request-version checking and updated search state before debounce.
-- No remaining actionable P0/P1/P2 visual findings within the agreed file-category scope.
-
-## Required fidelity surfaces
-
-- Typography: existing IBM Plex Sans Thai, readable Thai labels, distinct title/body/metadata hierarchy; filenames truncate without hiding actions. The retained font is a close product-appropriate match to the reference.
-- Layout: green top bar, pale left navigation, central thumbnail list and right preview. Spacing, separators, selected-row tint and low-radius controls follow the selected design. A few retained secondary actions support existing behavior.
-- Colors: forest primary `#1d513b`, warm white content, pale sage sidebar `#f0f4eb`, selected row `#e1ebdc`; colored file icons retained for recognition.
-- Imagery: production uses existing `/thumb/:id`, `/file/:id` and `/preview/:id` endpoints, with the existing licensed Feather icon set for UI and unsupported-file fallbacks. No raster approximation of UI controls.
-- Copy/content: Thai labels describe actual upload, link, file-type filtering, selection and editing functions. No subject-folder, owner-field or quota information is invented.
+- Typography: retained IBM Plex Sans Thai with a 34px desktop folder heading, readable file titles and subdued metadata. Thai labels and long file names are not clipped into primary actions.
+- Layout: forest top bar, pale sage sidebar with a real folder tree, central thumbnail rows with selection checkboxes, and a 360px side preview. Padding, selected-row tint and low-radius controls follow the source. Creation and management are actual operations.
+- Colors: `#1d513b` primary, pale `#f0f4eb` navigation, `#e1ebdc` selection; golden folder icons and restrained separators match the reference's visual system.
+- Assets: existing licensed Feather icons (including standard folder/book/star icons). Production thumbnails and file previews remain authenticated API resources. The isolated verification fixture reuses the supplied worksheet art for thumbnail responses; repeated worksheet thumbnails in evidence are fixture-only.
+- Content: folder names in screenshots are local fixtures. Production does not seed invented teacher folders. The manager allows teachers to build their own hierarchy. Favorites and recent media navigation connect to real stored data/query behavior.
 
 ## Validation
 
-- `npm test`: 2 existing classification tests pass.
-- `node --check public/app.js` and `node --check public/viewer.js`: pass.
-- `git diff --check`: pass.
-- Browser: header search returns one matching file; file-category filtering; empty category state; grid/list switch; multiselect count; upload dialog opens from central action; image preview and metadata open beside the list; mobile drawer expands and collapses after category selection.
-- Console inspection: returned messages were browser-extension metadata errors; no application errors appeared in the inspected log output.
-- Live authentication, Google Drive upload, Office conversion and write operations were not exercised against production. Their server implementations are unchanged. This review validates frontend integration using isolated fixtures, not external-service connectivity.
+- `npm test`: 13 passing tests, including authenticated Worker API tests against a temporary SQLite D1 adapter.
+- Schema migration preserves legacy media and Drive identifiers.
+- Folder tests cover nested creation, duplicate/invalid names, rename/reparent, empty-folder deletion, nonempty-folder refusal, cycle/depth checks and cross-owner rejection and 120-file moves under D1 statement binding limits.
+- File tests cover owner-checked moves, per-folder browsing, link insertion into a folder, favorites and rejection of foreign-folder upload completion before a Drive call.
+- Browser against the actual Worker folder/media APIs with an isolated SQLite database: create a folder; rename and move it beneath P4; move a file into it; open destination and confirm that file appears. This was not a mocked folder response.
+- Final browser checks: deep-link/reload into a folder, nested navigation and breadcrumbs, manager route, PDF side preview/full preview and close, mobile manager and drawer.
+- Console error inspection after final flow: no application errors returned. Earlier browser extension metadata errors were excluded.
+- JavaScript syntax checks and `git diff --check` passed before commit.
 
-## Follow-up polish
+## Limits and follow-up polish
 
-P3: keep existing Feather branding and font to avoid adding external asset dependencies; these differ slightly from the generated reference.
+- Drive file bytes/thumbnails in the browser are isolated fixtures. No live Drive upload, OAuth refresh, Office conversion or production D1 migration was executed during this frontend/backend verification.
+- Folder management is logical app organization. Actual Drive files stay inside the teacher's existing private Drive root, keeping existing access boundaries and file links intact.
+- P3: retained font and licensed icon strokes differ slightly from the generated mock. Folder ordering follows stored names rather than the mock's hand-arranged example.
 
 ## Implementation checklist
 
-- [x] Apply selected layout and forest palette.
-- [x] Retain actual file categories and existing authenticated APIs.
-- [x] Verify main browser interactions and 390px responsive navigation.
-- [x] Resolve review findings and preserve evidence.
+- [x] Restore real folders and management, including backend ownership validation.
+- [x] Preserve old files and implement additive migration.
+- [x] Verify create/rename/reparent/file-move through the browser.
+- [x] Compare selected source and revised implementation in one image.
+- [x] Verify desktop and 390px navigation without shipping test fixtures.

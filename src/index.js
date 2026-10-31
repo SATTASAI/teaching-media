@@ -6,6 +6,8 @@ import { verifyPassword, signJWT, verifyJWT, buildSessionCookie, buildClearCooki
 import * as drive from "./drive.js";
 import { CATEGORIES, CATEGORY_KEYS, categorizeFile, analyzeLink, extOf } from "./categorize.js";
 
+import { FolderError, folderId, ownFolder, listFolders, saveFolder, deleteFolder, moveMedia } from "./folders.js";
+
 const ROLES = ["teacher", "executive", "staff", "superadmin"];
 const PREVIEW_FOLDER_NAME = "_ตัวอย่างไฟล์ (ระบบ)";
 const SESSION_REFRESH_SECONDS = 60 * 60 * 24;
@@ -59,7 +61,19 @@ export async function ensureSchema(env) {
     env.DB.prepare(`CREATE TABLE IF NOT EXISTS tm_sso_codes (
       code_hash TEXT PRIMARY KEY, user_id INTEGER NOT NULL, session_version INTEGER NOT NULL, expires_at INTEGER NOT NULL)`),
   ]);
+  // Additive migration for existing deployments; keep Drive bindings and old media intact.
+  const columns = (await env.DB.prepare("PRAGMA table_info(tm_media)").all()).results || [];
+  for (const [name, type] of [["collection_id", "INTEGER"], ["favorite", "INTEGER NOT NULL DEFAULT 0"]]) {
+    if (!columns.some(c => c.name === name)) {
+      try { await env.DB.prepare(`ALTER TABLE tm_media ADD COLUMN ${name} ${type}`).run(); }
+      catch (e) { if (!String(e.message).includes("duplicate column")) throw e; }
+    }
+  }
   await env.DB.batch([
+    env.DB.prepare(`CREATE TABLE IF NOT EXISTS tm_collections (id INTEGER PRIMARY KEY AUTOINCREMENT, owner_id INTEGER NOT NULL, parent_id INTEGER, name TEXT NOT NULL, created_at TEXT NOT NULL DEFAULT (datetime('now')))`),
+    env.DB.prepare("CREATE UNIQUE INDEX IF NOT EXISTS idx_tm_collection_name ON tm_collections(owner_id, COALESCE(parent_id, 0), name COLLATE NOCASE)"),
+    env.DB.prepare("CREATE INDEX IF NOT EXISTS idx_tm_collection_parent ON tm_collections(owner_id, parent_id)"),
+    env.DB.prepare("CREATE INDEX IF NOT EXISTS idx_tm_media_collection ON tm_media(owner_id, collection_id, deleted_at)"),
     env.DB.prepare("CREATE INDEX IF NOT EXISTS idx_tm_media_owner ON tm_media(owner_id, deleted_at, created_at)"),
     env.DB.prepare("CREATE UNIQUE INDEX IF NOT EXISTS idx_tm_media_file ON tm_media(drive_file_id) WHERE drive_file_id IS NOT NULL"),
     env.DB.prepare("CREATE INDEX IF NOT EXISTS idx_tm_login_failures ON tm_login_failures(email, at)"),
@@ -194,7 +208,7 @@ async function teacherFolder(env, user) {
 }
 
 // ---------- สื่อ ----------
-const MEDIA_COLS = "id, kind, title, description, category, category_auto, file_name, ext, mime_type, file_size, url, link_provider, link_embed, link_thumb, preview_drive_id IS NOT NULL AS has_preview, created_at, updated_at, deleted_at";
+const MEDIA_COLS = "id, collection_id, favorite, kind, title, description, category, category_auto, file_name, ext, mime_type, file_size, url, link_provider, link_embed, link_thumb, preview_drive_id IS NOT NULL AS has_preview, created_at, updated_at, deleted_at";
 const SORTS = {
   newest: "created_at DESC, id DESC",
   oldest: "created_at ASC, id ASC",
@@ -209,6 +223,12 @@ async function listMedia(url, env, user) {
   const trash = url.searchParams.get("trash") === "1";
   const where = ["owner_id = ?", trash ? "deleted_at IS NOT NULL" : "deleted_at IS NULL"];
   const binds = [user.id];
+  if (url.searchParams.has("folder")) {
+    const f = folderId(url.searchParams.get("folder"));
+    await ownFolder(env, user, f);
+    where.push("collection_id IS ?"); binds.push(f);
+  }
+  if (url.searchParams.get("favorites") === "1") where.push("favorite = 1");
   const cat = url.searchParams.get("category");
   if (cat && CATEGORY_KEYS.includes(cat)) { where.push("category = ?"); binds.push(cat); }
   const q = String(url.searchParams.get("q") || "").trim();
@@ -246,6 +266,8 @@ async function startUpload(request, env, user) {
 
 async function completeUpload(request, env, user) {
   const body = await request.json().catch(() => ({}));
+  const collection = folderId(body.collection_id);
+  await ownFolder(env, user, collection);
   const fileId = String(body.driveFileId || "");
   if (!/^[\w-]{10,}$/.test(fileId)) return fail("รหัสไฟล์ไม่ถูกต้อง");
   const folder = await teacherFolder(env, user);
@@ -255,10 +277,10 @@ async function completeUpload(request, env, user) {
   if (exists) return json({ id: exists.id });
   const category = categorizeFile(meta.name, meta.mimeType);
   const title = drive.cleanName(body.title) || meta.name.replace(/\.[^.]{1,8}$/, "") || meta.name;
-  const row = await env.DB.prepare(`INSERT INTO tm_media (owner_id, kind, title, description, category, category_auto, file_name, ext, mime_type, file_size, drive_file_id, drive_folder_id)
-    VALUES (?, 'file', ?, ?, ?, ?, ?, ?, ?, ?, ?, ?) RETURNING id`)
+  const row = await env.DB.prepare(`INSERT INTO tm_media (owner_id, kind, title, description, category, category_auto, file_name, ext, mime_type, file_size, drive_file_id, drive_folder_id, collection_id)
+    VALUES (?, 'file', ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?) RETURNING id`)
     .bind(user.id, title, String(body.description || "").slice(0, 2000) || null, category, category, meta.name, extOf(meta.name), meta.mimeType || null,
-      meta.size != null ? Number(meta.size) : null, fileId, folder).first();
+      meta.size != null ? Number(meta.size) : null, fileId, folder, collection).first();
   return json({ id: row.id, category });
 }
 
@@ -275,12 +297,14 @@ async function fetchTitle(url) {
 
 async function addLink(request, env, user) {
   const body = await request.json().catch(() => ({}));
+  const collection = folderId(body.collection_id);
+  await ownFolder(env, user, collection);
   const info = analyzeLink(body.url);
   if (!info) return fail("ลิงก์ไม่ถูกต้อง (ต้องขึ้นต้นด้วย http:// หรือ https://)");
   const title = String(body.title || "").trim().slice(0, 200) || await fetchTitle(info.url) || info.host;
-  const row = await env.DB.prepare(`INSERT INTO tm_media (owner_id, kind, title, description, category, category_auto, url, link_provider, link_embed, link_thumb)
-    VALUES (?, 'link', ?, ?, ?, ?, ?, ?, ?, ?) RETURNING id`)
-    .bind(user.id, title, String(body.description || "").slice(0, 2000) || null, info.category, info.category, info.url, info.provider, info.embed, info.thumb).first();
+  const row = await env.DB.prepare(`INSERT INTO tm_media (owner_id, kind, title, description, category, category_auto, url, link_provider, link_embed, link_thumb, collection_id)
+    VALUES (?, 'link', ?, ?, ?, ?, ?, ?, ?, ?, ?) RETURNING id`)
+    .bind(user.id, title, String(body.description || "").slice(0, 2000) || null, info.category, info.category, info.url, info.provider, info.embed, info.thumb, collection).first();
   return json({ id: row.id, category: info.category });
 }
 
@@ -289,6 +313,10 @@ async function updateMedia(request, env, user, id) {
   if (!row) return fail("ไม่พบสื่อ", 404);
   const body = await request.json().catch(() => ({}));
   const sets = [], binds = [];
+  if (Object.hasOwn(body, "favorite")) {
+    if (typeof body.favorite !== "boolean") return fail("ค่ารายการโปรดไม่ถูกต้อง");
+    sets.push("favorite = ?"); binds.push(body.favorite ? 1 : 0);
+  }
   if (body.title != null) {
     const title = String(body.title).trim().slice(0, 200);
     if (!title) return fail("กรุณาตั้งชื่อสื่อ");
@@ -437,6 +465,14 @@ function sameOrigin(request) {
 async function handleApi(request, env, url, path, method, user) {
   if (path === "/api/me" && method === "GET") return json({ user: user && { id: user.id, email: user.email, full_name: user.full_name, role: user.role } });
   if (!user) return fail("กรุณาเข้าสู่ระบบ", 401);
+  if (path === "/api/folders" && method === "GET") return json({ folders: await listFolders(env, user) });
+  if (path === "/api/folders" && method === "POST") return json({ folder: await saveFolder(env, user, await request.json()) }, 201);
+  const folderMatch = path.match(/^\/api\/folders\/(\d+)$/);
+  if (folderMatch && method === "PATCH") return json({ folder: await saveFolder(env, user, await request.json(), Number(folderMatch[1])) });
+  if (folderMatch && method === "DELETE") { await deleteFolder(env, user, Number(folderMatch[1])); return json({ ok: true }); }
+  if (path === "/api/media/move" && method === "POST") {
+    const body = await request.json(); return json(await moveMedia(env, user, body.ids, body.collection_id));
+  }
   if (path === "/api/media" && method === "GET") return listMedia(url, env, user);
   if (path === "/api/uploads" && method === "POST") return startUpload(request, env, user);
   if (path === "/api/uploads/complete" && method === "POST") return completeUpload(request, env, user);
@@ -497,6 +533,7 @@ export default {
     try {
       return await handle(request, env, ctx);
     } catch (error) {
+      if (error instanceof FolderError) return fail(error.message, error.status);
       console.error(error);
       return fail(String(error?.message || "เกิดข้อผิดพลาด").slice(0, 300), 500);
     }

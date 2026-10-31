@@ -2,12 +2,12 @@
 (() => {
   const { api, icon, esc, size, date, pref, toast, CAT_COLORS, CAT_LABELS, SORTS } = TM;
   const $ = (id) => document.getElementById(id);
-  const host = window.parent !== window ? window.parent.TMApp : null;
+  const getHost = () => window.parent !== window ? window.parent.TMApp : null;
   const TEXT_EXT = new Set(["txt", "csv", "tsv", "md", "json", "xml", "html", "htm", "css", "js", "py", "java", "c", "cpp", "srt", "vtt", "log"]);
   const OFFICE = new Set(["document", "spreadsheet", "presentation"]);
-  const st = { items: [], category: "all", trash: false, sort: "newest", q: "", view: pref.get("view", "list"), selecting: false, selected: new Set(), openId: null };
+  const st = { items: [], category: "all", trash: false, sort: "newest", q: "", view: pref.get("view", "list"), selecting: false, selected: new Set(), openId: null, folders: [], folderId: null, section: "home", full: false };
 
-  const reload = () => (host ? host.reload() : standalone());
+  const reload = () => (getHost() ? getHost().reload() : standalone());
   async function standalone() {
     const p = new URLSearchParams({ sort: st.sort });
     if (st.trash) p.set("trash", "1");
@@ -38,7 +38,7 @@
   function row(it) {
     const sel = st.selected.has(it.id);
     return `<div class="row${sel ? " sel" : ""}${it.id === st.openId ? " active" : ""}" data-id="${it.id}" tabindex="0" role="button" aria-label="${esc(it.title)}">
-      ${st.selecting ? `<span class="tick">${sel ? icon("check", 14) : ""}</span>` : ""}
+      <input type="checkbox" class="file-check" data-check="${it.id}" aria-label="เลือก ${esc(it.title)}"${sel ? " checked" : ""}>
       <span class="row-thumb">${thumb(it)}</span><b title="${esc(it.title)}">${esc(it.title)}</b>
       <span class="muted row-type">${esc((it.ext || CAT_LABELS[it.category]).toUpperCase())}</span>
       <span class="muted row-size">${it.kind === "link" ? "ลิงก์" : size(it.file_size)}</span>
@@ -54,15 +54,37 @@
     return null;
   }
 
+  function renderFolders() {
+    const show = ["home", "folder", "manage"].includes(st.section) && !st.q;
+    const children = show ? st.folders.filter(f => f.parent_id === (st.folderId ?? null)) : [];
+    $("folderGrid").hidden = !show;
+    $("folderGrid").innerHTML = children.map(f => `<article class="folder-card">
+      <button class="folder-open" data-folder="${f.id}">${icon("folder", 34)}<span><b>${esc(f.name)}</b><small>${f.media_count} สื่อ · ${st.folders.filter(c => c.parent_id === f.id).length} แฟ้มย่อย</small></span></button>
+      <div class="folder-card-actions"><button class="btn btn-icon" data-folder-edit="${f.id}" aria-label="จัดการแฟ้ม ${esc(f.name)}" title="เปลี่ยนชื่อหรือย้ายแฟ้ม">${icon("edit", 14)}</button><button class="btn btn-icon" data-folder-delete="${f.id}" aria-label="ลบแฟ้ม ${esc(f.name)}">${icon("trash", 14)}</button></div></article>`).join("");
+    if (st.section === "manage" && !children.length) $("folderGrid").innerHTML = `<div class="folder-onboarding">${icon("folder", 44)}<h2>เริ่มจัดสื่อเป็นแฟ้มงาน</h2><p>สร้างแฟ้มรายวิชา แล้วเพิ่มแฟ้มย่อยตามระดับชั้นหรือหน่วยการเรียนรู้</p><button class="btn btn-primary" data-new-folder>${icon("plus", 16)} สร้างแฟ้มแรก</button></div>`;
+    const current = st.folders.find(f => f.id === st.folderId);
+    $("folderContext").hidden = !current;
+    $("folderContext").innerHTML = current ? `<details class="folder-menu"><summary aria-label="จัดการแฟ้มนี้" title="จัดการแฟ้มนี้">${icon("menu", 17)}</summary><div><button class="btn btn-sm" data-folder-edit="${current.id}">${icon("edit", 14)} เปลี่ยนชื่อ / ย้ายแฟ้ม</button><button class="btn btn-sm" data-folder-delete="${current.id}">${icon("trash", 14)} ลบแฟ้มว่าง</button></div></details>` : "";
+    const path = []; let cursor = current;
+    while (cursor && path.length < 33) { path.unshift(cursor); cursor = st.folders.find(f => f.id === cursor.parent_id); }
+    $("crumbPath").innerHTML = path.length ? path.map(f => `<span aria-hidden="true">›</span><button data-folder="${f.id}">${esc(f.name)}</button>`).join("") : `<span aria-hidden="true">›</span><b>${esc(st.section === "manage" ? "จัดการแฟ้มงาน" : st.section === "favorites" ? "รายการโปรด" : st.section === "recent" ? "สื่อที่เพิ่มล่าสุด" : st.trash ? "ถังขยะ" : "หน้าแรก")}</b>`;
+  }
   function renderMain() {
-    const title = st.trash ? "ถังขยะ" : st.category === "all" ? "สื่อทั้งหมด" : CAT_LABELS[st.category];
+    renderFolders();
+    document.body.classList.toggle("managing-folders", st.section === "manage");
+    $("quickUpload").hidden = st.section === "manage";
+    $("quickCreateFolder").classList.toggle("btn-primary", st.section === "manage");
+    const folder = st.folders.find(f => f.id === st.folderId);
+    const sectionTitle = st.section === "manage" ? "จัดการแฟ้มงาน" : st.section === "favorites" ? "รายการโปรด" : st.section === "recent" ? "สื่อที่เพิ่มล่าสุด" : null;
+    const title = folder?.name || sectionTitle || (st.trash ? "ถังขยะ" : st.category === "all" ? "สื่อทั้งหมด" : CAT_LABELS[st.category]);
     $("vTitle").textContent = st.q ? `${title} · ค้นหา “${st.q}”` : title;
-    $("crumbTitle").textContent = title;
+    $("typeFilter").value = st.category;
     $("librarySearch").value = st.q || "";
-    $("inlineDrop").hidden = st.trash;
-    $("vCount").textContent = `${st.items.length} รายการ`;
+    $("inlineDrop").hidden = st.trash || st.section === "manage";
+    $("vCount").textContent = st.section === "manage" ? `${st.folders.length} แฟ้มงาน · สร้างและจัดระเบียบแฟ้มของคุณ` : `${st.items.length} รายการ`;
     $("emptyTrashBtn").hidden = !st.trash || !st.items.length;
     $("viewSeg").querySelectorAll("button").forEach((b) => b.classList.toggle("on", b.dataset.view === st.view));
+    if (st.section === "manage") { $("vMain").innerHTML = ""; return; }
     if (!st.items.length) {
       $("vMain").innerHTML = st.trash
         ? `<div class="empty">${icon("trash", 46)}<p>ถังขยะว่าง</p></div>`
@@ -91,11 +113,13 @@
     const cats = `<select class="input input-sm" id="bulkCat"><option value="">ย้ายไปหมวด…</option><option value="auto">ให้ระบบจัดอัตโนมัติ</option>${Object.entries(CAT_LABELS).map(([k, v]) => `<option value="${k}">${v}</option>`).join("")}</select>`;
     $("bulkActions").innerHTML = st.trash
       ? `<button class="btn btn-sm" data-bulk="restore">${icon("restore", 14)} กู้คืน</button><button class="btn btn-sm btn-danger" data-bulk="delete">${icon("x", 14)} ลบถาวร</button>`
-      : `${cats}<button class="btn btn-sm btn-danger" data-bulk="trash">${icon("trash", 14)} ย้ายไปถังขยะ</button>`;
+      : `<button class="btn btn-sm" data-move-selected>${icon("folder", 14)} ย้ายไปแฟ้ม</button>${cats}<button class="btn btn-sm btn-danger" data-bulk="trash">${icon("trash", 14)} ย้ายไปถังขยะ</button>`;
   }
 
   function render(data) {
+    const contextChanged = st.folderId !== data.folderId || st.section !== data.section;
     Object.assign(st, data);
+    if (contextChanged && st.openId) closePreview();
     st.selected = new Set([...st.selected].filter((id) => st.items.some((i) => i.id === id)));
     $("sortSel").value = st.sort;
     renderMain(); renderBulk();
@@ -129,9 +153,11 @@
   }
 
   function showPreview(it, rebuild = true) {
+    if (it.id !== st.openId) st.full = false;
     st.openId = it.id;
-    host?.setActive(it.id);
+    getHost()?.setActive(it.id);
     $("pv").hidden = false;
+    $("pv").classList.toggle("fullscreen", st.full);
     document.body.classList.add("preview-open");
     $("pvTitle").textContent = it.title;
     $("pvMeta").textContent = [CAT_LABELS[it.category], it.kind === "file" ? `${it.file_name} · ${size(it.file_size)}` : it.url, date(it.created_at)].filter(Boolean).join(" · ");
@@ -139,7 +165,7 @@
     const newTab = it.kind === "file" && ["image", "video", "audio", "pdf"].includes(it.category_auto) ? `<a class="btn btn-sm" href="/file/${it.id}" target="_blank">${icon("external", 15)} เปิดแท็บใหม่</a>` : "";
     $("pvActions").innerHTML = st.trash
       ? `<button class="btn btn-sm" data-pv="restore">${icon("restore", 15)} กู้คืน</button><button class="btn btn-sm btn-danger" data-pv="delete">${icon("x", 15)} ลบถาวร</button>`
-      : `${dl}${newTab}<button class="btn btn-sm" data-pv="edit">${icon("edit", 15)} แก้ไข</button><button class="btn btn-sm btn-danger" data-pv="trash">${icon("trash", 15)} ลบ</button>`;
+      : `<button class="btn btn-sm btn-primary" data-pv="expand">${icon("external", 15)} ดูตัวอย่าง</button>${dl}<details class="pv-more"><summary aria-label="จัดการสื่อ">${icon("menu", 15)}</summary><div>${newTab}<button class="btn btn-sm" data-pv="move">${icon("folder", 15)} ย้ายแฟ้ม</button><button class="btn btn-sm" data-pv="favorite">${icon("star", 15)} ${it.favorite ? "เลิกโปรด" : "รายการโปรด"}</button><button class="btn btn-sm" data-pv="edit">${icon("edit", 15)} แก้ไข</button><button class="btn btn-sm btn-danger" data-pv="trash">${icon("trash", 15)} ลบ</button></div></details>`;
     const detailRows = [["ชื่อไฟล์", it.file_name || it.title], ["ประเภท", CAT_LABELS[it.category]], ["ขนาด", it.kind === "file" ? size(it.file_size) : "ลิงก์เว็บไซต์"], ["แก้ไขล่าสุด", date(it.updated_at)]];
     $("pvDetails").innerHTML = detailRows.map(([label, value]) => `<dt>${esc(label)}</dt><dd>${esc(value)}</dd>`).join("");
     $("pvDesc").hidden = !it.description;
@@ -147,7 +173,8 @@
     $("pvBack").innerHTML = icon("x");
     $("pvBack").setAttribute("aria-label", "ปิดตัวอย่าง");
     if (!rebuild) return;
-    $("pvBody").innerHTML = previewBody(it);
+    const thumbnailPreview = !st.full && it.kind === "file" && ["pdf", "document", "presentation", "spreadsheet"].includes(it.category_auto);
+    $("pvBody").innerHTML = thumbnailPreview ? `<div class="pv-page-thumb">${thumb(it)}</div>` : previewBody(it);
     const pre = $("pvBody").querySelector("[data-text]");
     if (pre) fetch(`/file/${it.id}?text=1`).then((r) => r.text()).then((t) => (pre.textContent = t || "(ไฟล์ว่าง)")).catch(() => (pre.textContent = "โหลดไฟล์ไม่สำเร็จ"));
     const office = $("pvBody").querySelector(".pv-office");
@@ -162,8 +189,8 @@
     renderMain();
   }
   function closePreview() {
-    $("pv").hidden = true; document.body.classList.remove("preview-open"); $("pvBody").innerHTML = ""; st.openId = null;
-    host?.setActive(null); renderMain();
+    $("pv").hidden = true; st.full = false; $("pv").classList.remove("fullscreen"); document.body.classList.remove("preview-open"); $("pvBody").innerHTML = ""; st.openId = null;
+    getHost()?.setActive(null); renderMain();
   }
 
   // ---------- แก้ไข / ลบ ----------
@@ -187,25 +214,34 @@
   }
 
   // ---------- เหตุการณ์ ----------
-  $("headingIcon").innerHTML = icon("archive", 30);
+  $("headingIcon").innerHTML = icon("folder", 34);
   $("quickUpload").innerHTML = `${icon("upload", 17)} อัปโหลดสื่อ`;
-  $("quickLink").innerHTML = `${icon("link", 17)} เพิ่มลิงก์`;
-  $("quickUpload").onclick = () => host?.openUpload();
-  $("quickLink").onclick = () => host?.openLink();
+  $("quickCreateFolder").innerHTML = `${icon("folder", 17)} สร้างโฟลเดอร์`;
+  $("quickUpload").onclick = () => getHost()?.openUpload();
+  $("quickCreateFolder").onclick = () => getHost()?.createFolder();
+  $("crumbHome").onclick = () => getHost()?.home();
+  $("typeFilter").innerHTML = `<option value="all">ทุกประเภทไฟล์</option>` + Object.entries(CAT_LABELS).map(([key, label]) => `<option value="${key}">${label}</option>`).join("");
+  $("typeFilter").onchange = e => getHost()?.setCategory(e.target.value);
+  document.addEventListener("click", e => {
+    const folder = e.target.closest("[data-folder]"); if (folder) return getHost()?.openFolder(folder.dataset.folder);
+    const edit = e.target.closest("[data-folder-edit]"); if (edit) return getHost()?.editFolder(edit.dataset.folderEdit);
+    const del = e.target.closest("[data-folder-delete]"); if (del) return getHost()?.deleteFolder(del.dataset.folderDelete);
+    if (e.target.closest("[data-new-folder]")) getHost()?.createFolder();
+  });
   $("librarySearchIcon").innerHTML = icon("search", 18);
   let searchTimer;
-  $("librarySearch").oninput = (e) => { const q = e.target.value; clearTimeout(searchTimer); searchTimer = setTimeout(() => host?.setQuery(q.trim()), 300); };
+  $("librarySearch").oninput = (e) => { const q = e.target.value; clearTimeout(searchTimer); searchTimer = setTimeout(() => getHost()?.setQuery(q.trim()), 300); };
   const inlineDrop = $("inlineDrop");
   $("inlineDropIcon").innerHTML = icon("upload", 38);
-  inlineDrop.onclick = () => host?.openUpload();
-  inlineDrop.onkeydown = (e) => { if (["Enter", " "].includes(e.key)) { e.preventDefault(); host?.openUpload(); } };
+  inlineDrop.onclick = () => getHost()?.openUpload();
+  inlineDrop.onkeydown = (e) => { if (["Enter", " "].includes(e.key)) { e.preventDefault(); getHost()?.openUpload(); } };
   inlineDrop.ondragover = (e) => { e.preventDefault(); inlineDrop.classList.add("over"); };
   inlineDrop.ondragleave = () => inlineDrop.classList.remove("over");
-  inlineDrop.ondrop = (e) => { e.preventDefault(); inlineDrop.classList.remove("over"); if (e.dataTransfer.files.length) host?.uploadFiles(e.dataTransfer.files); };
+  inlineDrop.ondrop = (e) => { e.preventDefault(); inlineDrop.classList.remove("over"); if (e.dataTransfer.files.length) getHost()?.uploadFiles(e.dataTransfer.files); };
   $("vMain").onkeydown = (e) => { if (["Enter", " "].includes(e.key) && e.target.matches("[data-id]")) { e.preventDefault(); e.target.click(); } };
 
   $("sortSel").innerHTML = SORTS.map(([k, v]) => `<option value="${k}">${v}</option>`).join("");
-  $("sortSel").onchange = (e) => (host ? host.setSort(e.target.value) : ((st.sort = e.target.value), standalone()));
+  $("sortSel").onchange = (e) => (getHost() ? getHost().setSort(e.target.value) : ((st.sort = e.target.value), standalone()));
   const seg = $("viewSeg").querySelectorAll("button");
   seg[0].innerHTML = icon("grid", 15); seg[1].innerHTML = icon("list", 15);
   $("viewSeg").onclick = (e) => { const b = e.target.closest("[data-view]"); if (!b) return; st.view = b.dataset.view; pref.set("view", st.view); renderMain(); };
@@ -218,6 +254,7 @@
     try { const r = await api("/api/trash/empty", { method: "POST" }); toast(`ลบถาวร ${r.count} รายการ`); reload(); } catch (e) { toast(e.message, true); }
   };
   $("bulkBar").addEventListener("click", async (e) => {
+    if (e.target.closest("[data-move-selected]")) { if (!st.selected.size) return toast("ยังไม่ได้เลือกรายการ", true); return getHost()?.openMove([...st.selected]); }
     const b = e.target.closest("[data-bulk]"); if (!b) return;
     if (!st.selected.size) return toast("ยังไม่ได้เลือกรายการ", true);
     if (await bulk(b.dataset.bulk, [...st.selected])) { st.selected.clear(); renderBulk(); }
@@ -228,8 +265,9 @@
     await bulk("category", [...st.selected], { category: e.target.value });
   });
   $("vMain").addEventListener("click", (e) => {
+    if (e.target.matches("[data-check]")) { const id = Number(e.target.dataset.check); st.selecting = true; st.selected.has(id) ? st.selected.delete(id) : st.selected.add(id); renderBulk(); renderMain(); return; }
     const act = e.target.closest("[data-act]");
-    if (act) return act.dataset.act === "upload" ? host?.openUpload() : host?.openLink();
+    if (act) return act.dataset.act === "upload" ? getHost()?.openUpload() : getHost()?.openLink();
     const el = e.target.closest("[data-id]"); if (!el) return;
     const id = Number(el.dataset.id);
     if (st.selecting) { st.selected.has(id) ? st.selected.delete(id) : st.selected.add(id); renderBulk(); renderMain(); return; }
@@ -247,6 +285,9 @@
   $("pvActions").addEventListener("click", async (e) => {
     const b = e.target.closest("[data-pv]"); if (!b) return;
     const it = st.items.find((i) => i.id === st.openId); if (!it) return;
+    if (b.dataset.pv === "expand") { st.full = true; return showPreview(it); }
+    if (b.dataset.pv === "move") return getHost()?.openMove([it.id]);
+    if (b.dataset.pv === "favorite") return getHost()?.favorite(it.id, !it.favorite);
     if (b.dataset.pv === "edit") return openEdit(it);
     if (await bulk(b.dataset.pv, [it.id])) closePreview();
   });
@@ -273,5 +314,5 @@
 
   window.Viewer = { render, open };
   renderBulk();
-  if (host) host.ready(); else standalone();
+  if (window.parent !== window) getHost()?.ready(); else standalone();
 })();
