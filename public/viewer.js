@@ -28,7 +28,7 @@
   function card(it) {
     const sel = st.selected.has(it.id);
     const meta = it.kind === "link" ? esc(it.link_provider === "web" ? new URL(it.url).hostname : it.link_provider) : size(it.file_size);
-    return `<article tabindex="0" role="button" aria-label="${esc(it.title)}" class="card${sel ? " sel" : ""}${it.id === st.openId ? " active" : ""}" data-id="${it.id}">
+    return `<article tabindex="0" role="button" aria-label="${esc(it.title)}" class="card${sel ? " sel" : ""}${it.id === st.openId ? " active" : ""}" data-id="${it.id}"${st.trash ? "" : ' draggable="true"'}>
       <div class="th">${thumb(it)}${st.selecting ? `<span class="tick">${sel ? icon("check", 14) : ""}</span>` : ""}</div>
       <div class="card-b"><b title="${esc(it.title)}">${esc(it.title)}</b>
         <div class="card-m"><span class="chip" style="background:${CAT_COLORS[it.category]}">${esc(CAT_LABELS[it.category])}</span><span>${meta}</span></div>
@@ -37,7 +37,7 @@
 
   function row(it) {
     const sel = st.selected.has(it.id);
-    return `<div class="row${sel ? " sel" : ""}${it.id === st.openId ? " active" : ""}" data-id="${it.id}" tabindex="0" role="button" aria-label="${esc(it.title)}">
+    return `<div class="row${sel ? " sel" : ""}${it.id === st.openId ? " active" : ""}" data-id="${it.id}"${st.trash ? "" : ' draggable="true"'} tabindex="0" role="button" aria-label="${esc(it.title)}">
       <input type="checkbox" class="file-check" data-check="${it.id}" aria-label="เลือก ${esc(it.title)}"${sel ? " checked" : ""}>
       <span class="row-thumb">${thumb(it)}</span><b title="${esc(it.title)}">${esc(it.title)}</b>
       <span class="muted row-type">${esc((it.ext || CAT_LABELS[it.category]).toUpperCase())}</span>
@@ -235,7 +235,7 @@
   $("inlineDropIcon").innerHTML = icon("upload", 38);
   inlineDrop.onclick = () => getHost()?.openUpload();
   inlineDrop.onkeydown = (e) => { if (["Enter", " "].includes(e.key)) { e.preventDefault(); getHost()?.openUpload(); } };
-  inlineDrop.ondragover = (e) => { e.preventDefault(); inlineDrop.classList.add("over"); };
+  inlineDrop.ondragover = (e) => { if (dragIds) return; e.preventDefault(); inlineDrop.classList.add("over"); };
   inlineDrop.ondragleave = () => inlineDrop.classList.remove("over");
   inlineDrop.ondrop = (e) => { e.preventDefault(); inlineDrop.classList.remove("over"); if (e.dataTransfer.files.length) getHost()?.uploadFiles(e.dataTransfer.files); };
   $("vMain").onkeydown = (e) => { if (["Enter", " "].includes(e.key) && e.target.matches("[data-id]")) { e.preventDefault(); e.target.click(); } };
@@ -311,6 +311,44 @@
     if (!it) { try { it = (await api(`/api/media/${id}`)).item; } catch (e) { return toast(e.message, true); } }
     showPreview(it);
   }
+
+  // ---------- ลากสื่อไปวางในแฟ้ม (การ์ดแฟ้ม, เส้นทางด้านบน, "แฟ้มสื่อของฉัน" = แฟ้มหลัก) ----------
+  let dragIds = null;
+  const dropTarget = (el) => el?.closest(".folder-card, #crumbPath [data-folder], #crumbHome");
+  const targetFolder = (t) => t.id === "crumbHome" ? null : Number(t.dataset.folder || t.querySelector("[data-folder]")?.dataset.folder);
+  const clearOver = () => document.querySelectorAll(".drop-over").forEach((x) => x.classList.remove("drop-over"));
+  document.addEventListener("dragstart", (e) => {
+    const el = e.target.closest?.("[data-id][draggable]"); if (!el) return;
+    const id = Number(el.dataset.id);
+    dragIds = st.selected.has(id) ? [...st.selected] : [id];
+    e.dataTransfer.effectAllowed = "move";
+    e.dataTransfer.setData("text/plain", `tm-media:${dragIds.join(",")}`);
+    const tag = document.createElement("div"); tag.className = "drag-tag"; tag.textContent = dragIds.length > 1 ? `ย้าย ${dragIds.length} รายการ` : el.getAttribute("aria-label") || "ย้ายสื่อ";
+    document.body.appendChild(tag); e.dataTransfer.setDragImage(tag, 12, 12); setTimeout(() => tag.remove(), 0);
+    document.body.classList.add("dragging-media");
+  });
+  document.addEventListener("dragend", () => { dragIds = null; clearOver(); document.body.classList.remove("dragging-media"); });
+  document.addEventListener("dragover", (e) => {
+    if (!dragIds) return;
+    const t = dropTarget(e.target); if (!t) return;
+    const dest = targetFolder(t);
+    if (dest === (st.folderId ?? null)) return; // แฟ้มเดิม
+    e.preventDefault(); e.dataTransfer.dropEffect = "move";
+    if (!t.classList.contains("drop-over")) { clearOver(); t.classList.add("drop-over"); }
+  });
+  document.addEventListener("dragleave", (e) => { const t = dropTarget(e.target); if (t && !t.contains(e.relatedTarget)) t.classList.remove("drop-over"); });
+  document.addEventListener("drop", async (e) => {
+    if (!dragIds) return;
+    const t = dropTarget(e.target); if (!t) return;
+    e.preventDefault(); e.stopPropagation(); clearOver();
+    const ids = dragIds, dest = targetFolder(t); dragIds = null;
+    try {
+      const r = await api("/api/media/move", { method: "POST", body: { ids, collection_id: dest } });
+      const name = dest == null ? "แฟ้มสื่อของฉัน" : st.folders.find((f) => f.id === dest)?.name || "แฟ้ม";
+      toast(`ย้าย ${r.count} รายการไป “${name}” แล้ว`);
+      st.selected.clear(); renderBulk(); reload();
+    } catch (err) { toast(err.message, true); }
+  });
 
   window.Viewer = { render, open };
   renderBulk();
