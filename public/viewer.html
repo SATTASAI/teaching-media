@@ -1,0 +1,51 @@
+<!doctype html>
+<html lang="th">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>สื่อทั้งหมด</title>
+<link rel="stylesheet" href="/style.css">
+</head>
+<body class="viewer-body">
+<header class="v-toolbar">
+  <div class="v-title"><h1 id="vTitle">สื่อทั้งหมด</h1><span class="muted" id="vCount"></span></div>
+  <div class="v-tools">
+    <label class="v-sort"><span class="muted">จัดเรียง</span><select class="input" id="sortSel"></select></label>
+    <div class="seg" id="viewSeg"><button data-view="grid" title="แบบตาราง"></button><button data-view="list" title="แบบรายการ"></button></div>
+    <button class="btn btn-sm" id="selectBtn"></button>
+    <button class="btn btn-sm btn-danger" id="emptyTrashBtn" hidden></button>
+  </div>
+</header>
+<div class="v-bulk" id="bulkBar" hidden>
+  <b id="bulkCount">เลือก 0 รายการ</b>
+  <button class="btn btn-sm" id="bulkAll">เลือกทั้งหมด</button>
+  <span class="v-bulk-actions" id="bulkActions"></span>
+  <button class="btn btn-sm" id="bulkCancel">ยกเลิก</button>
+</div>
+<main id="vMain" class="v-main"></main>
+
+<div class="pv" id="pv" hidden>
+  <div class="pv-head">
+    <button class="btn btn-icon" id="pvBack" title="กลับ"></button>
+    <div class="pv-title"><b id="pvTitle"></b><small class="muted" id="pvMeta"></small></div>
+    <div class="pv-actions" id="pvActions"></div>
+  </div>
+  <div class="pv-body" id="pvBody"></div>
+  <div class="pv-desc" id="pvDesc" hidden></div>
+</div>
+
+<div class="modal" id="editModal">
+  <form class="dialog" id="editForm">
+    <h2>แก้ไขสื่อ</h2>
+    <label class="field"><span>ชื่อสื่อ</span><input class="input" name="title" maxlength="200" required></label>
+    <label class="field" id="editUrlField"><span>ลิงก์ (URL)</span><input class="input" name="url" type="url"></label>
+    <label class="field"><span>หมวด</span><select class="input" name="category" id="editCat"></select></label>
+    <label class="field"><span>คำอธิบาย</span><textarea class="input" name="description" rows="3" maxlength="2000"></textarea></label>
+    <div class="dialog-actions"><button type="button" class="btn" data-close>ยกเลิก</button><button class="btn btn-primary">บันทึก</button></div>
+  </form>
+</div>
+
+<script src="/common.js"></script>
+<script src="/viewer.js"></script>
+</body>
+</html>
