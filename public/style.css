@@ -325,3 +325,8 @@ button,a,input,select,textarea,[tabindex]{outline-offset:4px}
 @media(min-width:1060px){.v-title h1{font-size:34px}.row b{font-size:14px}}
 @media(max-width:540px){.folder-context{flex-basis:auto!important}.v-toolbar .v-tools .folder-context{width:37px}.folder-menu>div{min-width:175px}}
 .managing-folders .library-controls{display:none}.managing-folders .folder-grid{margin-top:16px}.managing-folders .v-toolbar{margin-bottom:24px}
+/* ลากสื่อเข้าแฟ้ม */
+[draggable="true"]{-webkit-user-drag:element}
+.dragging-media .folder-card{border-style:dashed;border-color:#9fb894}
+.folder-card.drop-over,#crumbPath [data-folder].drop-over,#crumbHome.drop-over{outline:2px solid #3f7d4e;outline-offset:2px;background:#e6f1e1;border-radius:7px}
+.drag-tag{position:fixed;top:-100px;left:0;padding:6px 12px;border-radius:8px;background:#2f5d3a;color:#fff;font-size:13px;font-weight:600;white-space:nowrap}
