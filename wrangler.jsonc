@@ -1,0 +1,17 @@
+{
+  "name": "teaching-media",
+  "keep_vars": true,
+  "compatibility_date": "2024-09-23",
+  "main": "src/index.js",
+  "assets": { "directory": "./public", "binding": "ASSETS", "run_worker_first": true },
+  "routes": [{ "pattern": "teachingmedia.banpadengschool.ac.th", "custom_domain": true }],
+  "vars": {
+    // ชื่อโฟลเดอร์หลักใน Google Drive — ระบบหา (หรือสร้าง) โฟลเดอร์นี้ แล้วสร้างโฟลเดอร์ย่อยตามชื่อครู
+    // ถ้าต้องการระบุโฟลเดอร์ตายตัว ให้เพิ่ม "TEACHING_MEDIA_FOLDER_ID": "<id>"
+    "TEACHING_MEDIA_FOLDER_NAME": "Teaching Media"
+  },
+  // ใช้ฐานข้อมูลเดียวกับ system (บัญชีผู้ใช้ร่วมกัน) — ต้องประกาศในไฟล์นี้ ไม่งั้น binding หายทุกครั้งที่ deploy
+  "d1_databases": [
+    { "binding": "DB", "database_name": "banpadeng_school_db", "database_id": "870fa9ec-122f-4161-a1ca-cc9979dcfa30" }
+  ]
+}
