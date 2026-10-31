@@ -332,7 +332,7 @@ button,a,input,select,textarea,[tabindex]{outline-offset:4px}
 .drag-tag{position:fixed;top:-100px;left:0;padding:6px 12px;border-radius:8px;background:#2f5d3a;color:#fff;font-size:13px;font-weight:600;white-space:nowrap}
 
 /* แผนการจัดการเรียนรู้ */
-.side-actions .btn-plan{grid-column:1/-1;color:var(--primary);border-color:#cfd6f5;background:var(--soft)}
+.side-actions .btn-plan{grid-column:1/-1}
 .plans{flex:1;overflow:auto;padding:22px 26px 40px}
 .plans[hidden]{display:none}
 .plans-head{display:flex;gap:16px;align-items:flex-end;justify-content:space-between;flex-wrap:wrap;margin-bottom:16px}
@@ -354,3 +354,11 @@ button,a,input,select,textarea,[tabindex]{outline-offset:4px}
 .plan-empty{background:#fff;border:1px dashed #c8d0ea;border-radius:var(--radius);padding:30px;text-align:center;color:var(--muted)}
 .plan-custom{display:grid;grid-template-columns:2fr 1fr;gap:10px}
 @media(max-width:860px){.plans{padding:16px 12px 30px}.plans-tools{width:100%}.plans-tools select{flex:1;min-width:0}}
+
+/* ปุ่มแผนการจัดการเรียนรู้ — สีส้มเด่น */
+.btn.btn-plan,#planUploadBtn2{background:#f97316;border-color:#f97316;color:#fff;font-weight:600}
+.btn.btn-plan:hover,#planUploadBtn2:hover{background:#ea580c;border-color:#ea580c;color:#fff}
+.btn.btn-plan .ic,#planUploadBtn2 .ic{color:#fff}
+.side-nav .nav-item.nav-plan,.nav-item.nav-plan .dot{color:#ea580c}
+.side-nav .nav-item.nav-plan.active{background:#ffedd5;color:#c2410c}
+.btn.btn-plan[hidden]{display:none}
