@@ -73,6 +73,7 @@
     renderFolders();
     document.body.classList.toggle("managing-folders", st.section === "manage");
     $("quickUpload").hidden = st.section === "manage";
+    $("quickPlanUpload").hidden = st.section !== "home" || st.trash;
     $("quickCreateFolder").classList.toggle("btn-primary", st.section === "manage");
     const folder = st.folders.find(f => f.id === st.folderId);
     const sectionTitle = st.section === "manage" ? "จัดการแฟ้มงาน" : st.section === "favorites" ? "รายการโปรด" : st.section === "recent" ? "สื่อที่เพิ่มล่าสุด" : null;
@@ -218,6 +219,8 @@
   $("quickUpload").innerHTML = `${icon("upload", 17)} อัปโหลดสื่อ`;
   $("quickCreateFolder").innerHTML = `${icon("folder", 17)} สร้างโฟลเดอร์`;
   $("quickUpload").onclick = () => getHost()?.openUpload();
+  $("quickPlanUpload").innerHTML = `${icon("book", 17)} อัพโหลดแผนการจัดการเรียนรู้`;
+  $("quickPlanUpload").onclick = () => getHost()?.openPlanUpload();
   $("quickCreateFolder").onclick = () => getHost()?.createFolder();
   $("crumbHome").onclick = () => getHost()?.home();
   $("typeFilter").innerHTML = `<option value="all">ทุกประเภทไฟล์</option>` + Object.entries(CAT_LABELS).map(([key, label]) => `<option value="${key}">${label}</option>`).join("");

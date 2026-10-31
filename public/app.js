@@ -37,7 +37,7 @@
   }
   function renderNav() {
     const navs = [["home", "หน้าแรก", "all"], ["recent", "สื่อที่เพิ่มล่าสุด", "restore"], ["favorites", "รายการโปรด", "star"], ["manage", "จัดการแฟ้มงาน", "folder"], ["plans", "แผนการจัดการเรียนรู้", "book"], ["trash", "ถังขยะ", "trash"]];
-    $("mainNav").innerHTML = navs.map(([key, label, ic]) => `<button class="nav-item${state.section === key ? " active" : ""}" data-section="${key}"${state.section === key ? ' aria-current="page"' : ''}>${icon(ic, 20)}${label}</button>`).join("");
+    $("mainNav").innerHTML = navs.map(([key, label, ic]) => `<button class="nav-item${state.section === key ? " active" : ""}${key === "plans" ? " nav-plan" : ""}" data-section="${key}"${state.section === key ? ' aria-current="page"' : ''}>${icon(ic, 20)}${label}</button>`).join("");
     const ancestors = new Set(); let f = state.folders.find(f => f.id === state.folderId);
     while (f && !ancestors.has(f.id)) { ancestors.add(f.id); f = state.folders.find(x => x.id === f.parent_id); }
     const branch = (parent = null, depth = 0) => depth > 32 ? "" : state.folders.filter(f => f.parent_id === parent).map(f => {
@@ -90,6 +90,7 @@
     setQuery(q) { state.q = q; $("search").value = q; load(); },
     uploadFiles(files) { openModal("uploadModal"); uploadFiles(files); },
     openUpload: () => openModal("uploadModal"),
+    openPlanUpload: () => window.TMPlans?.openUpload(),
     openLink: () => openModal("linkModal"),
     ready: pushToViewer,
     openFolder(id) { navigate("folder", Number(id)); },
