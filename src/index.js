@@ -266,8 +266,14 @@ async function startUpload(request, env, user) {
 
 async function completeUpload(request, env, user) {
   const body = await request.json().catch(() => ({}));
-  const collection = folderId(body.collection_id);
-  await ownFolder(env, user, collection);
+  let collection = folderId(body.collection_id);
+  // แฟ้มของคนอื่น → ปฏิเสธทันที; แฟ้มถูกลบระหว่างอัปโหลด → เก็บไฟล์ไว้ที่แฟ้มหลัก ไม่ให้ไฟล์ค้างใน Drive
+  let movedToRoot = false;
+  if (collection !== null) {
+    const f = await env.DB.prepare("SELECT owner_id FROM tm_collections WHERE id = ?").bind(collection).first();
+    if (f && f.owner_id !== user.id) return fail("ไม่พบแฟ้มงาน", 404);
+    if (!f) { collection = null; movedToRoot = true; }
+  }
   const fileId = String(body.driveFileId || "");
   if (!/^[\w-]{10,}$/.test(fileId)) return fail("รหัสไฟล์ไม่ถูกต้อง");
   const folder = await teacherFolder(env, user);
@@ -281,7 +287,7 @@ async function completeUpload(request, env, user) {
     VALUES (?, 'file', ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?) RETURNING id`)
     .bind(user.id, title, String(body.description || "").slice(0, 2000) || null, category, category, meta.name, extOf(meta.name), meta.mimeType || null,
       meta.size != null ? Number(meta.size) : null, fileId, folder, collection).first();
-  return json({ id: row.id, category });
+  return json({ id: row.id, category, moved_to_root: movedToRoot });
 }
 
 async function fetchTitle(url) {
@@ -346,38 +352,62 @@ async function updateMedia(request, env, user, id) {
 }
 
 // ลบถาวร = ย้ายไฟล์ไปถังขยะ Drive (กู้ใน Drive ได้ 30 วัน) + ลบรายการ
+// ถ้าย้ายไฟล์เข้าถังขยะ Drive ไม่สำเร็จ (ยกเว้นไฟล์ไม่มีอยู่แล้ว) จะเก็บรายการไว้ ไม่ให้ไฟล์ค้างใน Drive โดยไม่มีรายการ
 async function purge(env, row) {
-  if (row.drive_file_id) await drive.trashFile(env, row.drive_file_id).catch(() => {});
+  if (row.drive_file_id) {
+    const res = await drive.driveFetch(env, `/files/${encodeURIComponent(row.drive_file_id)}?supportsAllDrives=true`, {
+      method: "PATCH", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ trashed: true }),
+    }, { raw: true }).catch(() => null);
+    if (!res || (!res.ok && res.status !== 404)) return false;
+  }
   if (row.preview_drive_id) await drive.deleteForever(env, row.preview_drive_id).catch(() => {});
   await env.DB.prepare("DELETE FROM tm_media WHERE id = ?").bind(row.id).run();
+  return true;
 }
+
+async function purgeAll(env, rows) {
+  let done = 0;
+  for (const row of rows) if (await purge(env, row)) done++;
+  return done;
+}
+
+// D1 รับค่าได้ไม่เกิน 100 ค่าต่อคำสั่ง จึงแบ่งทำทีละ 80 รายการ
+const BULK_CHUNK = 80;
+const chunked = (ids) => { const out = []; for (let i = 0; i < ids.length; i += BULK_CHUNK) out.push(ids.slice(i, i + BULK_CHUNK)); return out; };
 
 async function bulkAction(request, env, user) {
   const body = await request.json().catch(() => ({}));
-  const ids = [...new Set((Array.isArray(body.ids) ? body.ids : []).map(Number).filter((n) => n > 0))].slice(0, 500);
+  const ids = [...new Set((Array.isArray(body.ids) ? body.ids : []).map(Number).filter((n) => Number.isSafeInteger(n) && n > 0))].slice(0, 500);
   if (!ids.length) return fail("ยังไม่ได้เลือกรายการ");
-  const marks = ids.map(() => "?").join(",");
-  const rows = (await env.DB.prepare(`SELECT * FROM tm_media WHERE owner_id = ? AND id IN (${marks})`).bind(user.id, ...ids).all()).results || [];
   const action = String(body.action || "");
-  if (action === "trash") {
-    await env.DB.prepare(`UPDATE tm_media SET deleted_at = datetime('now') WHERE owner_id = ? AND deleted_at IS NULL AND id IN (${marks})`).bind(user.id, ...ids).run();
-  } else if (action === "restore") {
-    await env.DB.prepare(`UPDATE tm_media SET deleted_at = NULL WHERE owner_id = ? AND id IN (${marks})`).bind(user.id, ...ids).run();
-  } else if (action === "delete") {
-    for (const row of rows) await purge(env, row);
-  } else if (action === "category") {
-    const cat = String(body.category || "");
-    if (cat === "auto") await env.DB.prepare(`UPDATE tm_media SET category = category_auto, updated_at = datetime('now') WHERE owner_id = ? AND id IN (${marks})`).bind(user.id, ...ids).run();
-    else if (CATEGORY_KEYS.includes(cat)) await env.DB.prepare(`UPDATE tm_media SET category = ?, updated_at = datetime('now') WHERE owner_id = ? AND id IN (${marks})`).bind(cat, user.id, ...ids).run();
-    else return fail("หมวดไม่ถูกต้อง");
-  } else return fail("คำสั่งไม่ถูกต้อง");
+  const cat = String(body.category || "");
+  if (!["trash", "restore", "delete", "category"].includes(action)) return fail("คำสั่งไม่ถูกต้อง");
+  if (action === "category" && cat !== "auto" && !CATEGORY_KEYS.includes(cat)) return fail("หมวดไม่ถูกต้อง");
+  const chunks = chunked(ids);
+  const marksOf = (c) => c.map(() => "?").join(",");
+  const rows = [];
+  for (const c of chunks) rows.push(...((await env.DB.prepare(`SELECT * FROM tm_media WHERE owner_id = ? AND id IN (${marksOf(c)})`).bind(user.id, ...c).all()).results || []));
+  if (action === "delete") {
+    const done = await purgeAll(env, rows);
+    if (done < rows.length) return json({ ok: false, count: done, error: `ลบถาวรได้ ${done} จาก ${rows.length} รายการ · ติดต่อ Google Drive ไม่สำเร็จ กรุณาลองใหม่` }, 502);
+    return json({ ok: true, count: done });
+  }
+  const statements = chunks.map((c) => {
+    const m = marksOf(c);
+    if (action === "trash") return env.DB.prepare(`UPDATE tm_media SET deleted_at = datetime('now') WHERE owner_id = ? AND deleted_at IS NULL AND id IN (${m})`).bind(user.id, ...c);
+    if (action === "restore") return env.DB.prepare(`UPDATE tm_media SET deleted_at = NULL WHERE owner_id = ? AND id IN (${m})`).bind(user.id, ...c);
+    if (cat === "auto") return env.DB.prepare(`UPDATE tm_media SET category = category_auto, updated_at = datetime('now') WHERE owner_id = ? AND id IN (${m})`).bind(user.id, ...c);
+    return env.DB.prepare(`UPDATE tm_media SET category = ?, updated_at = datetime('now') WHERE owner_id = ? AND id IN (${m})`).bind(cat, user.id, ...c);
+  });
+  await env.DB.batch(statements);
   return json({ ok: true, count: rows.length });
 }
 
 async function emptyTrash(env, user) {
   const rows = (await env.DB.prepare("SELECT * FROM tm_media WHERE owner_id = ? AND deleted_at IS NOT NULL").bind(user.id).all()).results || [];
-  for (const row of rows) await purge(env, row);
-  return json({ ok: true, count: rows.length });
+  const done = await purgeAll(env, rows);
+  if (done < rows.length) return json({ ok: false, count: done, error: `ลบถาวรได้ ${done} จาก ${rows.length} รายการ · ติดต่อ Google Drive ไม่สำเร็จ กรุณาลองใหม่` }, 502);
+  return json({ ok: true, count: done });
 }
 
 // ---------- ส่งไฟล์ / ภาพย่อ / ตัวอย่าง ----------
