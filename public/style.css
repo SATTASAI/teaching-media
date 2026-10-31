@@ -330,3 +330,27 @@ button,a,input,select,textarea,[tabindex]{outline-offset:4px}
 .dragging-media .folder-card{border-style:dashed;border-color:#9fb894}
 .folder-card.drop-over,#crumbPath [data-folder].drop-over,#crumbHome.drop-over{outline:2px solid #3f7d4e;outline-offset:2px;background:#e6f1e1;border-radius:7px}
 .drag-tag{position:fixed;top:-100px;left:0;padding:6px 12px;border-radius:8px;background:#2f5d3a;color:#fff;font-size:13px;font-weight:600;white-space:nowrap}
+
+/* แผนการจัดการเรียนรู้ */
+.side-actions .btn-plan{grid-column:1/-1;color:var(--primary);border-color:#cfd6f5;background:var(--soft)}
+.plans{flex:1;overflow:auto;padding:22px 26px 40px}
+.plans[hidden]{display:none}
+.plans-head{display:flex;gap:16px;align-items:flex-end;justify-content:space-between;flex-wrap:wrap;margin-bottom:16px}
+.plans-head h1{margin:0;font-size:22px}
+.plans-head p{margin:4px 0 0;font-size:13px}
+.plans-tools{display:flex;gap:8px;align-items:center}
+.plans-tools select{width:auto;min-width:210px}
+.plans-body{display:grid;gap:14px}
+.plan-subject{background:#fff;border:1px solid var(--line);border-radius:var(--radius);box-shadow:var(--shadow);overflow:hidden}
+.plan-subject>header{display:flex;justify-content:space-between;align-items:center;gap:10px;padding:12px 16px;border-bottom:1px solid var(--line);background:#fafbff}
+.plan-subject>header b{font-size:15.5px}
+.plan-unit{padding:10px 16px;border-top:1px dashed var(--line)}
+.plan-unit:first-of-type{border-top:0}
+.plan-unit h3{margin:0 0 6px;font-size:14px;color:var(--primary);display:flex;justify-content:space-between;align-items:center;gap:8px}
+.plan-file{display:flex;align-items:center;gap:10px;padding:6px 0;flex-wrap:wrap}
+.plan-file .nm{flex:1;min-width:180px;overflow-wrap:anywhere}
+.plan-file .nm small{display:block;color:var(--muted);font-size:12px}
+.plan-file .acts{display:flex;gap:6px;flex-wrap:wrap}
+.plan-empty{background:#fff;border:1px dashed #c8d0ea;border-radius:var(--radius);padding:30px;text-align:center;color:var(--muted)}
+.plan-custom{display:grid;grid-template-columns:2fr 1fr;gap:10px}
+@media(max-width:860px){.plans{padding:16px 12px 30px}.plans-tools{width:100%}.plans-tools select{flex:1;min-width:0}}

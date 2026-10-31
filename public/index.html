@@ -31,6 +31,7 @@
     <div class="side-actions">
       <button class="btn btn-primary" id="uploadBtn"></button>
       <button class="btn" id="linkBtn"></button>
+      <button class="btn btn-plan" id="planUploadBtn"></button>
     </div>
     <nav class="side-nav">
       <div id="mainNav"></div>
@@ -41,6 +42,13 @@
   </aside>
   <main class="main">
     <iframe id="viewer" title="สื่อทั้งหมด" src="/viewer.html"></iframe>
+    <section id="plansView" class="plans" hidden>
+      <div class="plans-head">
+        <div><h1>แผนการจัดการเรียนรู้ของฉัน</h1><p class="muted">เก็บใน Google Drive: แผนการจัดการเรียนการสอน / ปีการศึกษา / ภาคเรียน / วิชา / หน่วยที่</p></div>
+        <div class="plans-tools"><select class="input" id="planTermFilter" aria-label="ปีการศึกษา/ภาคเรียน"></select><button class="btn btn-primary" id="planUploadBtn2"></button></div>
+      </div>
+      <div id="plansBody" class="plans-body"><p class="muted">กำลังโหลด…</p></div>
+    </section>
   </main>
 </div>
 
@@ -53,6 +61,43 @@
     <div class="queue" id="queue"></div>
     <div class="dialog-actions"><button type="button" class="btn" id="uploadLinkBtn">เพิ่มลิงก์สื่อ</button><button class="btn" data-close>ปิด</button></div>
   </div>
+</div>
+
+<div class="modal" id="planModal" role="dialog" aria-modal="true" aria-labelledby="planTitle">
+  <div class="dialog">
+    <h2 id="planTitle">อัพโหลดแผนการจัดการเรียนรู้</h2>
+    <p class="muted" style="margin:0 0 12px">อัพโหลดได้หลายไฟล์ต่อหน่วย ครั้งละไม่เกิน 30 ไฟล์ ไม่จำกัดขนาด · ระบบสร้างโฟลเดอร์ใน Drive ให้อัตโนมัติ</p>
+    <form id="planForm" class="plan-form">
+      <label class="field"><span>ปีการศึกษา / ภาคเรียน</span><select class="input" name="term_id" id="planTerm" required></select></label>
+      <label class="field"><span>รายวิชา / ชั้น</span><select class="input" name="subject" id="planSubject" required></select></label>
+      <div class="plan-custom" id="planCustom" hidden>
+        <label class="field"><span>ชื่อวิชา</span><input class="input" name="subject_name" maxlength="120" placeholder="เช่น คณิตศาสตร์"></label>
+        <label class="field"><span>ชั้น</span><input class="input" name="grade_level" maxlength="30" placeholder="เช่น ป.4"></label>
+      </div>
+      <label class="field"><span>หน่วยการเรียนรู้ที่</span><input class="input" name="unit_no" type="number" min="1" max="60" step="1" required placeholder="เช่น 1"></label>
+    </form>
+    <div class="drop" id="planDrop" role="button" tabindex="0" aria-label="เลือกไฟล์แผนการจัดการเรียนรู้"><div id="planDropIcon"></div><b>ลากไฟล์แผนฯ มาวาง</b> หรือ <u>คลิกเพื่อเลือกไฟล์</u><div class="muted" style="font-size:12.5px">ครั้งละไม่เกิน 30 ไฟล์</div></div>
+    <input type="file" id="planFileInput" multiple hidden>
+    <p class="err" id="planError" role="alert"></p>
+    <div class="queue" id="planQueue"></div>
+    <div class="dialog-actions"><button class="btn" data-close>ปิด</button></div>
+  </div>
+</div>
+
+<div class="modal" id="planEditModal" role="dialog" aria-modal="true" aria-labelledby="planEditTitle">
+  <form class="dialog" id="planEditForm">
+    <h2 id="planEditTitle">แก้ไขแผนฯ</h2>
+    <label class="field"><span>ชื่อไฟล์</span><input class="input" name="title" maxlength="200" required></label>
+    <label class="field"><span>ปีการศึกษา / ภาคเรียน</span><select class="input" name="term_id" id="planEditTerm"></select></label>
+    <label class="field"><span>รายวิชา / ชั้น</span><select class="input" name="subject" id="planEditSubject"></select></label>
+    <div class="plan-custom" id="planEditCustom" hidden>
+      <label class="field"><span>ชื่อวิชา</span><input class="input" name="subject_name" maxlength="120"></label>
+      <label class="field"><span>ชั้น</span><input class="input" name="grade_level" maxlength="30"></label>
+    </div>
+    <label class="field"><span>หน่วยการเรียนรู้ที่</span><input class="input" name="unit_no" type="number" min="1" max="60" step="1" required></label>
+    <p class="err" id="planEditError" role="alert"></p>
+    <div class="dialog-actions"><button type="button" class="btn" data-close>ยกเลิก</button><button class="btn btn-primary">บันทึก</button></div>
+  </form>
 </div>
 
 <div class="modal" id="linkModal">
@@ -88,5 +133,6 @@
 
 <script src="/common.js"></script>
 <script src="/app.js"></script>
+<script src="/plans.js"></script>
 </body>
 </html>
