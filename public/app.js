@@ -6,7 +6,7 @@
   function currentRoute() {
     const parts = location.hash.replace(/^#\/?/, "").split("/");
     if (parts[0] === "folders" && /^\d+$/.test(parts[1] || "")) return { section: "folder", id: Number(parts[1]) };
-    return { section: ["home", "manage", "recent", "favorites", "trash"].includes(parts[0]) ? parts[0] : "home", id: null };
+    return { section: ["home", "manage", "recent", "favorites", "trash", "plans"].includes(parts[0]) ? parts[0] : "home", id: null };
   }
   const route = currentRoute(); state.section = route.section; state.folderId = route.id; state.trash = route.section === "trash";
   const viewer = () => $("viewer").contentWindow?.Viewer;
@@ -18,6 +18,7 @@
     $("accountAvatar").innerHTML = icon("document", 18);
     $("uploadBtn").innerHTML = `${icon("upload", 16)} อัปโหลดสื่อ`;
     $("linkBtn").innerHTML = `${icon("link", 16)} วางลิงก์`;
+    $("planUploadBtn").innerHTML = `${icon("book", 16)} อัพโหลดแผนการจัดการเรียนรู้`;
     $("logoutBtn").innerHTML = icon("logout", 15);
     $("drawerBtn").innerHTML = icon("menu");
     $("searchIcon").innerHTML = icon("search", 15);
@@ -35,7 +36,7 @@
     return `<option value="">แฟ้มหลัก</option>` + state.folders.filter(f => !descendants.has(f.id)).map(f => `<option value="${f.id}">${esc(folderPath(f.id))}</option>`).join("");
   }
   function renderNav() {
-    const navs = [["home", "หน้าแรก", "all"], ["recent", "สื่อที่เพิ่มล่าสุด", "restore"], ["favorites", "รายการโปรด", "star"], ["manage", "จัดการแฟ้มงาน", "folder"], ["trash", "ถังขยะ", "trash"]];
+    const navs = [["home", "หน้าแรก", "all"], ["recent", "สื่อที่เพิ่มล่าสุด", "restore"], ["favorites", "รายการโปรด", "star"], ["manage", "จัดการแฟ้มงาน", "folder"], ["plans", "แผนการจัดการเรียนรู้", "book"], ["trash", "ถังขยะ", "trash"]];
     $("mainNav").innerHTML = navs.map(([key, label, ic]) => `<button class="nav-item${state.section === key ? " active" : ""}" data-section="${key}"${state.section === key ? ' aria-current="page"' : ''}>${icon(ic, 20)}${label}</button>`).join("");
     const ancestors = new Set(); let f = state.folders.find(f => f.id === state.folderId);
     while (f && !ancestors.has(f.id)) { ancestors.add(f.id); f = state.folders.find(x => x.id === f.parent_id); }
@@ -53,6 +54,13 @@
   let loadVersion = 0;
   async function load() {
     const version = ++loadVersion;
+    const plansMode = state.section === "plans";
+    $("viewer").hidden = plansMode; $("plansView").hidden = !plansMode;
+    if (plansMode) {
+      try { const f = await api("/api/folders"); if (version !== loadVersion) return; state.folders = f.folders; }
+      catch (e) { if (e.status === 401) return showLogin(); }
+      renderNav(); window.TMPlans?.show(); return;
+    }
     const p = new URLSearchParams({ sort: state.sort });
     if (state.trash) p.set("trash", "1");
     else if (state.category !== "all") p.set("category", state.category);

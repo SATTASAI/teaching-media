@@ -7,6 +7,7 @@ import * as drive from "./drive.js";
 import { CATEGORIES, CATEGORY_KEYS, categorizeFile, analyzeLink, extOf } from "./categorize.js";
 
 import { FolderError, folderId, ownFolder, listFolders, saveFolder, deleteFolder, moveMedia } from "./folders.js";
+import { ensurePlanSchema, handlePlansApi, ownedPlan } from "./plans.js";
 
 const ROLES = ["teacher", "executive", "staff", "superadmin"];
 const PREVIEW_FOLDER_NAME = "_ตัวอย่างไฟล์ (ระบบ)";
@@ -78,6 +79,7 @@ export async function ensureSchema(env) {
     env.DB.prepare("CREATE UNIQUE INDEX IF NOT EXISTS idx_tm_media_file ON tm_media(drive_file_id) WHERE drive_file_id IS NOT NULL"),
     env.DB.prepare("CREATE INDEX IF NOT EXISTS idx_tm_login_failures ON tm_login_failures(email, at)"),
   ]);
+  await ensurePlanSchema(env);
   schemaReady = true;
 }
 
@@ -425,8 +427,7 @@ function disposition(type, name) {
   return `${type}; filename="${asciiName(name)}"; filename*=UTF-8''${encodeURIComponent(name || "file")}`;
 }
 
-async function serveFile(request, env, user, id, url) {
-  const row = await ownedMedia(env, user, id);
+async function serveFile(request, env, row, url) {
   if (!row || row.kind !== "file") return new Response("ไม่พบไฟล์", { status: 404 });
   const download = url.searchParams.get("download") === "1";
   const asText = url.searchParams.get("text") === "1";
@@ -464,8 +465,7 @@ async function serveThumb(request, env, ctx, user, id) {
 }
 
 // เอกสาร/ตารางคำนวณ/งานนำเสนอ (Office) → แปลงเป็น PDF ครั้งแรกที่เปิดดู แล้วเก็บไว้ใช้ซ้ำ
-async function servePreviewPdf(env, user, id) {
-  const row = await ownedMedia(env, user, id);
+async function servePreviewPdf(env, row, table = "tm_media") {
   if (!row || row.kind !== "file") return new Response("ไม่พบไฟล์", { status: 404 });
   let pid = row.preview_drive_id;
   if (!pid) {
@@ -476,11 +476,11 @@ async function servePreviewPdf(env, user, id) {
       return new Response(`แปลงไฟล์เพื่อแสดงตัวอย่างไม่สำเร็จ: ${String(e.message).slice(0, 150)}`, { status: 502 });
     }
     if (!pid) return new Response("ไฟล์นี้แสดงตัวอย่างไม่ได้", { status: 415 });
-    await env.DB.prepare("UPDATE tm_media SET preview_drive_id = ? WHERE id = ?").bind(pid, row.id).run();
+    await env.DB.prepare(`UPDATE ${table} SET preview_drive_id = ? WHERE id = ?`).bind(pid, row.id).run();
   }
   const res = await drive.fetchMedia(env, pid);
   if (!res.ok) {
-    await env.DB.prepare("UPDATE tm_media SET preview_drive_id = NULL WHERE id = ?").bind(row.id).run();
+    await env.DB.prepare(`UPDATE ${table} SET preview_drive_id = NULL WHERE id = ?`).bind(row.id).run();
     return new Response("ไม่พบไฟล์ตัวอย่าง กรุณาเปิดใหม่อีกครั้ง", { status: 502 });
   }
   return new Response(res.body, { headers: { ...SECURITY_HEADERS, "Content-Type": "application/pdf", "Content-Disposition": disposition("inline", `${row.title}.pdf`), "Cache-Control": "private, max-age=300" } });
@@ -495,6 +495,8 @@ function sameOrigin(request) {
 async function handleApi(request, env, url, path, method, user) {
   if (path === "/api/me" && method === "GET") return json({ user: user && { id: user.id, email: user.email, full_name: user.full_name, role: user.role } });
   if (!user) return fail("กรุณาเข้าสู่ระบบ", 401);
+  const plans = await handlePlansApi(request, env, url, path, method, user, { teacherFolder });
+  if (plans) return plans;
   if (path === "/api/folders" && method === "GET") return json({ folders: await listFolders(env, user) });
   if (path === "/api/folders" && method === "POST") return json({ folder: await saveFolder(env, user, await request.json()) }, 201);
   const folderMatch = path.match(/^\/api\/folders\/(\d+)$/);
@@ -525,15 +527,19 @@ async function handle(request, env, ctx) {
 
   if (path === "/sso" && method === "GET") { await ensureSchema(env); return ssoLogin(url, env); }
 
-  const fileMatch = path.match(/^\/(file|thumb|preview)\/(\d+)$/);
+  const fileMatch = path.match(/^\/(file|thumb|preview|plan-file|plan-preview)\/(\d+)$/);
   if (fileMatch && method === "GET") {
     await ensureSchema(env);
     const user = await currentUser(request, env);
     if (!user) return new Response("กรุณาเข้าสู่ระบบ", { status: 401 });
     const id = Number(fileMatch[2]);
-    if (fileMatch[1] === "file") return serveFile(request, env, user, id, url);
+    if (fileMatch[1] === "file") return serveFile(request, env, await ownedMedia(env, user, id), url);
     if (fileMatch[1] === "thumb") return serveThumb(request, env, ctx, user, id);
-    return servePreviewPdf(env, user, id);
+    if (fileMatch[1] === "preview") return servePreviewPdf(env, await ownedMedia(env, user, id));
+    // แผนการจัดการเรียนรู้ของตนเอง (category_auto ใช้ตัดสินการแปลง PDF)
+    const plan = await ownedPlan(env, user, id);
+    const row = plan && { ...plan, kind: "file", category_auto: plan.category };
+    return fileMatch[1] === "plan-file" ? serveFile(request, env, row, url) : servePreviewPdf(env, row, "tm_lesson_plans");
   }
 
   if (!path.startsWith("/api/")) {
