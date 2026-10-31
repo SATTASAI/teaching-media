@@ -115,5 +115,23 @@ test('แฟ้มส่วนตัว: migration, CRUD, ย้ายสื่�
     assert.equal((await request(`/api/folders/${unit}`,'DELETE')).status,200);
     assert.equal((await request('/api/media?folder=root')).items.length,2);
   });
+  await t.test('bulk trash/category/restore with more than 100 items stays under D1 bind limit', async () => {
+    const ids = [];
+    for (let i = 0; i < 150; i++) ids.push(db.prepare("INSERT INTO tm_media (owner_id, kind, title, category, category_auto) VALUES (1,'link',?,'link','link')").run(`zzbulk ${i}`).lastInsertRowid);
+    const list = ids.map(Number);
+    let r = await request('/api/media/bulk','POST',{action:'category',category:'video',ids:list});
+    assert.equal(r.status,200); assert.equal(r.count,150);
+    assert.equal(db.prepare("SELECT COUNT(*) n FROM tm_media WHERE title LIKE 'zzbulk %' AND category='video'").get().n,150);
+    r = await request('/api/media/bulk','POST',{action:'trash',ids:list});
+    assert.equal(r.status,200);
+    assert.equal(db.prepare("SELECT COUNT(*) n FROM tm_media WHERE title LIKE 'zzbulk %' AND deleted_at IS NOT NULL").get().n,150);
+    r = await request('/api/media/bulk','POST',{action:'restore',ids:list},2);
+    assert.equal(r.count,0);
+    r = await request('/api/media/bulk','POST',{action:'restore',ids:list});
+    assert.equal(r.status,200);
+    assert.equal(db.prepare("SELECT COUNT(*) n FROM tm_media WHERE title LIKE 'zzbulk %' AND deleted_at IS NULL").get().n,150);
+    r = await request('/api/media/bulk','POST',{action:'delete',ids:list});
+    assert.equal(r.status,200); assert.equal(r.count,150);
+  });
   db.close();
 });

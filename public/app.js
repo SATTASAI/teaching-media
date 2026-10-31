@@ -153,7 +153,7 @@
       const meta = await putFile(uploadUrl, file, (p) => { bar.style.width = `${Math.round(p * 100)}%`; st.textContent = `${Math.round(p * 100)}%`; });
       const done = await api("/api/uploads/complete", { method: "POST", body: { driveFileId: meta.id, collection_id: collectionId } });
       bar.style.width = "100%"; el.classList.add("done");
-      st.innerHTML = `${icon("check", 13)} ${esc(CAT_LABELS[done.category] || "เสร็จ")}`;
+      st.innerHTML = `${icon("check", 13)} ${esc(CAT_LABELS[done.category] || "เสร็จ")}${done.moved_to_root ? " · แฟ้มถูกลบ จึงเก็บไว้ที่แฟ้มหลัก" : ""}`;
     } catch (e) {
       el.classList.add("err"); bar.style.width = "100%"; st.textContent = e.message;
     } finally {
