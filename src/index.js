@@ -148,7 +148,9 @@ async function sha256Hex(text) {
 
 // เข้าจากปุ่มในหน้าบัญชีของ system: แลกรหัสใช้ครั้งเดียว (system สร้างใน tm_sso_codes) เป็น session
 async function ssoLogin(url, env) {
-  const home = new Response(null, { status: 302, headers: { Location: "/", "Cache-Control": "no-store", "Referrer-Policy": "no-referrer" } });
+  // to=plans → เปิดหน้าแผนการจัดการเรียนรู้ (ปุ่ม "อัพโหลดแผนการสอน" ในบัญชีของ system) · รับเฉพาะค่าที่กำหนด
+  const dest = url.searchParams.get("to") === "plans" ? "/#/plans" : "/";
+  const home = new Response(null, { status: 302, headers: { Location: dest, "Cache-Control": "no-store", "Referrer-Policy": "no-referrer" } });
   const code = String(url.searchParams.get("code") || "");
   if (!/^[0-9a-f]{64}$/.test(code)) return home;
   const row = await env.DB.prepare("DELETE FROM tm_sso_codes WHERE code_hash = ? AND expires_at >= ? RETURNING user_id, session_version")
