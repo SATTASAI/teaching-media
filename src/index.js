@@ -2,6 +2,7 @@
 // - ครูเข้าจากปุ่ม "อัพโหลดสื่อการสอน" ในหน้าบัญชีของ system (SSO) หรือล็อกอินด้วยบัญชี system
 // - สื่อของครูแต่ละคน เห็น/จัดการได้เฉพาะเจ้าของบัญชี
 // - ไฟล์เก็บใน Google Drive: Teaching Media / <ชื่อครู> / ...  (เบราว์เซอร์อัพโหลดตรงเข้า Drive ไม่จำกัดขนาด)
+import {schoolPasskeys} from './lib/school-passkeys.js';
 import { verifyPassword, signJWT, verifyJWT, buildSessionCookie, buildClearCookie, AUTH_COOKIE_NAME } from "./crypto.js";
 import * as drive from "./drive.js";
 import { CATEGORIES, CATEGORY_KEYS, categorizeFile, analyzeLink, extOf } from "./categorize.js";
@@ -120,6 +121,8 @@ async function currentUser(request, env) {
 }
 
 const sessionToken = async (env, user) => signJWT({ sub: user.id, sv: user.session_version ?? user._sv ?? 1, app: "tmedia" }, await jwtSecret(env));
+
+const handleSchoolPasskeys=schoolPasskeys({currentUser,verifyPassword,roles:ROLES,issue:async(request,env,u)=>json({ok:true},200,{'Set-Cookie':buildSessionCookie(await sessionToken(env,u)),'Cache-Control':'no-store'})});
 
 async function login(request, env) {
   const body = await request.json().catch(() => ({}));
@@ -553,6 +556,7 @@ async function handle(request, env, ctx) {
 
   if (method !== "GET" && !sameOrigin(request)) return fail("คำขอไม่ถูกต้อง", 403);
   await ensureSchema(env);
+  if(path.startsWith("/api/passkeys"))return handleSchoolPasskeys(request,env);
   if (path === "/api/login" && method === "POST") return login(request, env);
   if (path === "/api/logout" && method === "POST") return json({ ok: true }, 200, { "Set-Cookie": buildClearCookie() });
 
